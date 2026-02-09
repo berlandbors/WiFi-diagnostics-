@@ -105,6 +105,46 @@
             color: #667eea;
             font-weight: 600;
         }
+        /* WebRTC Info */
+        #webrtc-info {
+            margin-top:32px;
+            padding:18px 13px;
+            background:#f7f8fd;
+            border-radius:13px;
+            box-shadow: 0 2px 10px #667eea19;
+        }
+        #webrtc-info h2 {
+            font-size: 20px;
+            color: #667eea;
+            margin-top:0; margin-bottom:8px;
+            text-align:left;
+        }
+        #webrtc-list small { color:#888; }
+        #webrtc-list .cand {
+            padding: 6px 0 4px 0;
+            border-bottom:1px solid #e7e8f7;
+            font-size:13px;
+        }
+        #webrtc-list .cand:last-child { border-bottom:none;}
+        /* IP/Browser Info */
+        #ip-browser-info {
+            margin-top:32px;
+            padding:18px 13px;
+            background:#f7fdfe;
+            border-radius:13px;
+            box-shadow: 0 2px 10px #8edbee1b;
+        }
+        #ip-browser-info h2 {
+            font-size: 20px;
+            color: #23cabf;
+            margin-top:0; margin-bottom:9px;
+            text-align:left;
+        }
+        #ipbrowser-list .info-row2 {
+            display:flex;justify-content:space-between;font-size:14px;padding:5px 0;
+        }
+        #ipbrowser-list .info-row2 label{color:#888;}
+        #ipbrowser-list .info-row2 b{font-weight:500;font-family:monospace;color:#24b720;}
     </style>
 </head>
 <body>
@@ -150,6 +190,21 @@
             </div>
         </div>
         <div class="warning" id="warning" style="display: none;"></div>
+        <!-- Новый Блок IP/Browser Info -->
+        <div id="ip-browser-info">
+            <h2>Инфо об устройстве и браузере</h2>
+            <div id="ipbrowser-list">
+                <div class="info-row2"><label>Ваш локальный IP:</label> <b id="localIp">...</b></div>
+                <div class="info-row2"><label>Ваш внешний IP:</label> <b id="publicIp">...</b></div>
+                <div class="info-row2"><label>Браузер:</label> <b id="browserData">...</b></div>
+                <div class="info-row2"><label>Платформа:</label> <b id="platformData">...</b></div>
+            </div>
+        </div>
+        <!-- Блок WebRTC -->
+        <div id="webrtc-info">
+            <h2>Параметры WebRTC</h2>
+            <div id="webrtc-list">Поиск данных...</div>
+        </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
@@ -248,6 +303,8 @@
                     }
                 }
             });
+            showWebRTCResults();
+            showIpBrowserInfo();
         });
 
         function updateAverages() {
@@ -325,6 +382,68 @@
 
         setInterval(() => runSpeedTest(null, true), 10000);
         runSpeedTest(null, true);
+
+        // --- WEBRTC INFO BLOCK ---
+        function getWebRTCNetworkInfo(callback) {
+            let pc = new RTCPeerConnection({iceServers: [{ urls:'stun:stun.l.google.com:19302' }]});
+            pc.createDataChannel("test");
+            let results = [];
+            pc.onicecandidate = event => {
+                if (event.candidate) {
+                    let cand = event.candidate.candidate;
+                    let ip = cand.match(/(\d{1,3}\.){3}\d{1,3}/)?.[0] ?? "—";
+                    let networkType = cand.match(/network-type (\w+)/)?.[1] ?? "—";
+                    let typ = cand.match(/typ (\w+)/)?.[1] ?? "—";
+                    results.push({ candidate: cand, ip, type: typ, networkType });
+                }
+            };
+            pc.createOffer()
+                .then(offer => pc.setLocalDescription(offer));
+            setTimeout(()=>{
+                pc.close();
+                callback(results);
+            }, 2500);
+        }
+
+        function showWebRTCResults() {
+            const list = document.getElementById('webrtc-list');
+            getWebRTCNetworkInfo(results => {
+                if (!results.length) {
+                    list.innerHTML = '<small>Нет данных (браузер ограничивает ICE-кандидаты)</small>';
+                    return;
+                }
+                list.innerHTML = results.map((r, i) =>
+                    `<div class="cand">
+                        <b>Кандидат ${i+1}:</b>
+                        IP: <b>${r.ip}</b><br>
+                        Тип: <b>${r.type}</b> &nbsp;|&nbsp; Сеть: <b>${r.networkType}</b>
+                    </div>`
+                ).join('');
+            });
+        }
+
+        // --- IP + BROWSER INFO ---
+        function showIpBrowserInfo() {
+            // Публичный IP
+            fetch("https://api.ipify.org?format=json").then(r=>r.json()).then(data=>{
+                document.getElementById('publicIp').textContent = data.ip;
+            }).catch(()=>{document.getElementById('publicIp').textContent = "Ошибка";})
+
+            // Локальный IP (через WebRTC)
+            getWebRTCNetworkInfo(cands => {
+                // Первый local (host) адрес
+                let ip = cands.find(c=>c.type==="host" && c.ip!=="127.0.0.1")?.ip || '—';
+                document.getElementById('localIp').textContent = ip;
+            });
+
+            // Инфа о браузере
+            let nav = navigator;
+            let agent = (nav.userAgentData && nav.userAgentData.brands)
+                ? nav.userAgentData.brands.map(v=>v.brand + " " + v.version).join("; ")
+                : nav.userAgent;
+            document.getElementById('browserData').textContent = agent;
+            document.getElementById('platformData').textContent = nav.platform || (nav.userAgentData?.platform || "—");
+        }
     </script>
 </body>
 </html>
