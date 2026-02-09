@@ -5,14 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WiFi Диагностика</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
@@ -20,7 +15,6 @@
             justify-content: center;
             align-items: center;
         }
-        
         .container {
             background: white;
             border-radius: 20px;
@@ -29,14 +23,12 @@
             width: 100%;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
-        
-        h1 {
+        h1, p {
             color: #333;
             margin-bottom: 30px;
             text-align: center;
             font-size: 28px;
         }
-        
         .info-card {
             background: #f8f9fa;
             border-radius: 12px;
@@ -44,28 +36,10 @@
             margin-bottom: 20px;
             border-left: 4px solid #667eea;
         }
-        
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .info-row:last-child {
-            border-bottom: none;
-        }
-        
-        .label {
-            font-weight: 600;
-            color: #555;
-        }
-        
-        .value {
-            color: #667eea;
-            font-weight: 500;
-        }
-        
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0; }
+        .info-row:last-child { border-bottom: none; }
+        .label { font-weight: 600; color: #555; }
+        .value { color: #667eea; font-weight: 500; }
         .status {
             display: inline-block;
             padding: 6px 16px;
@@ -73,17 +47,8 @@
             font-size: 14px;
             font-weight: 600;
         }
-        
-        .status.online {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .status.offline {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
+        .status.online { background: #d4edda; color: #155724; }
+        .status.offline { background: #f8d7da; color: #721c24; }
         button {
             width: 100%;
             padding: 15px;
@@ -96,31 +61,24 @@
             cursor: pointer;
             transition: transform 0.2s;
         }
-        
-        button:hover {
-            transform: translateY(-2px);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
+        button:hover { transform: translateY(-2px); }
+        button:active { transform: translateY(0); }
         .speed-meter {
             margin-top: 20px;
             text-align: center;
         }
-        
-        .speed-value {
-            font-size: 48px;
+        .speed-avg {
+            font-size: 40px;
             font-weight: 700;
             color: #667eea;
         }
-        
-        .speed-unit {
-            font-size: 18px;
-            color: #888;
+        .rtt-avg {
+            font-size: 22px;
+            color: #ffab26;
+            font-weight: 600;
+            margin-top: 5px;
         }
-        
+        .speed-unit { font-size: 18px; color: #888; }
         .warning {
             background: #fff3cd;
             border-left-color: #ffc107;
@@ -129,12 +87,30 @@
             border-radius: 8px;
             margin-top: 20px;
         }
+        #speedChart {
+            margin: 0 auto;
+            display: block;
+            background: #f8f9fa;
+            border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(102,126,234,0.06);
+        }
+        .average-info {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 18px;
+            color: #333;
+        }
+        .average-info span {
+            margin: 0 12px;
+            color: #667eea;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🛜 WiFi Диагностика</h1>
-        
+        <h1>🛜 WiFi Диагностика by Andrew Berlin</h1>
+        <p>@Berlandbor</p> <br>
         <div class="info-card">
             <div class="info-row">
                 <span class="label">Статус подключения:</span>
@@ -161,23 +137,25 @@
                 <span class="value" id="saveData">-</span>
             </div>
         </div>
-        
         <div class="speed-meter">
-            <div class="speed-value" id="speedValue">-</div>
-            <div class="speed-unit">Mbps</div>
+            <div class="speed-avg"><span id="speedAvgDisplay">-</span> <span class="speed-unit">Mbps</span></div>
+            <div class="rtt-avg">Задержка: <span id="rttAvgDisplay">-</span> мс</div>
         </div>
-        
-        <button onclick="runSpeedTest()">🚀 Проверить скорость</button>
-        
+        <button onclick="runSpeedTest(event)">🚀 Проверить скорость</button>
+        <div style="margin-top: 30px; text-align:center;">
+            <canvas id="speedChart" width="400" height="200"></canvas>
+            <div class="average-info">
+                Средняя скорость: <span id="avgSpeed">-</span> Mbps |
+                Средняя задержка: <span id="avgRtt">-</span> мс
+            </div>
+        </div>
         <div class="warning" id="warning" style="display: none;"></div>
     </div>
-
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Проверка поддержки Network Information API
+        // Network Information API
         const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-        
         function updateNetworkInfo() {
-            // Статус онлайн/офлайн
             const statusEl = document.getElementById('connectionStatus');
             if (navigator.onLine) {
                 statusEl.textContent = 'Онлайн';
@@ -186,50 +164,29 @@
                 statusEl.textContent = 'Офлайн';
                 statusEl.className = 'status offline';
             }
-            
             if (connection) {
-                // Тип соединения
                 document.getElementById('connectionType').textContent = connection.type || 'Неизвестно';
-                
-                // Эффективный тип (4g, 3g, 2g, slow-2g)
                 document.getElementById('effectiveType').textContent = connection.effectiveType || '-';
-                
-                // Скорость загрузки (Mbps)
-                if (connection.downlink) {
-                    document.getElementById('downlink').textContent = connection.downlink + ' Mbps';
-                    document.getElementById('speedValue').textContent = connection.downlink;
-                }
-                
-                // RTT (Round Trip Time) - задержка в миллисекундах
                 document.getElementById('rtt').textContent = connection.rtt ? connection.rtt + ' мс' : '-';
-                
-                // Режим экономии трафика
                 document.getElementById('saveData').textContent = connection.saveData ? 'Включена' : 'Выключена';
-                
-                // Предупреждения
                 showWarnings();
             } else {
                 document.getElementById('warning').style.display = 'block';
                 document.getElementById('warning').textContent = '⚠️ Network Information API не поддерживается вашим браузером. Попробуйте Chrome/Edge.';
             }
         }
-        
         function showWarnings() {
             const warningEl = document.getElementById('warning');
             let warnings = [];
-            
-            if (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g') {
+            if (connection && (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g')) {
                 warnings.push('⚠️ Очень медленное соединение');
             }
-            
-            if (connection.rtt > 500) {
+            if (connection && connection.rtt > 500) {
                 warnings.push('⚠️ Высокая задержка (RTT > 500ms)');
             }
-            
-            if (connection.downlink < 1) {
+            if (connection && connection.downlink < 1) {
                 warnings.push('⚠️ Низкая скорость загрузки');
             }
-            
             if (warnings.length > 0) {
                 warningEl.style.display = 'block';
                 warningEl.innerHTML = warnings.join('<br>');
@@ -237,49 +194,137 @@
                 warningEl.style.display = 'none';
             }
         }
-        
-        // Простой тест скорости
-        async function runSpeedTest() {
-            const button = event.target;
-            button.textContent = '⏳ Тестирование...';
-            button.disabled = true;
-            
+
+        // Chart.js данные
+        let speedData = {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Скорость (Mbps)',
+                    data: [],
+                    backgroundColor: 'rgba(102, 126, 234, 0.18)',
+                    borderColor: '#667eea',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    yAxisID: 'y-speed'
+                },
+                {
+                    label: 'RTT (мс)',
+                    data: [],
+                    backgroundColor: 'rgba(255,171,38,0.12)',
+                    borderColor: '#ffab26',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4,
+                    yAxisID: 'y-rtt'
+                }
+            ]
+        };
+        let speedChart;
+        window.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('speedChart').getContext('2d');
+            speedChart = new Chart(ctx, {
+                type: 'line',
+                data: speedData,
+                options: {
+                    responsive: false,
+                    plugins: {
+                        legend: { display: true }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Время' } },
+                        'y-speed': {
+                            title: { display: true, text: 'Mbps' },
+                            position: 'left',
+                            min: 0
+                        },
+                        'y-rtt': {
+                            title: { display: true, text: 'Задержка, мс' },
+                            position: 'right',
+                            min: 0,
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        });
+
+        function updateAverages() {
+            // Средняя скорость
+            const speedArr = speedData.datasets[0].data;
+            const avgSpeed = speedArr.length ? (speedArr.reduce((s, a) => s + a, 0) / speedArr.length).toFixed(2) : "-";
+            document.getElementById('avgSpeed').textContent = avgSpeed;
+            document.getElementById('speedAvgDisplay').textContent = avgSpeed;
+            document.getElementById('downlink').textContent = avgSpeed === "-" ? "-" : (avgSpeed + " Mbps");
+
+            // Средний RTT
+            const rttArr = speedData.datasets[1].data.filter(a => typeof a === "number" && !isNaN(a));
+            const avgRtt = rttArr.length ? (rttArr.reduce((s, a) => s + a, 0) / rttArr.length).toFixed(0) : "-";
+            document.getElementById('avgRtt').textContent = avgRtt;
+            document.getElementById('rttAvgDisplay').textContent = avgRtt;
+        }
+
+        // Тест скорости + RTT (задержки)
+        async function runSpeedTest(event = null, auto = false) {
+            let button;
+            if (event) {
+                button = event.target;
+                button.textContent = '⏳ Тестирование...';
+                button.disabled = true;
+            }
             try {
-                // Загружаем тестовый файл (используем изображение с GitHub)
+                // Тест скорости (скачивание)
                 const fileUrl = 'https://raw.githubusercontent.com/github/explore/main/topics/javascript/javascript.png';
-                const fileSizeInBytes = 50000; // примерный размер
-                
+                const fileSizeInBytes = 50000;
                 const startTime = new Date().getTime();
                 const response = await fetch(fileUrl + '?cacheBust=' + startTime);
                 await response.blob();
                 const endTime = new Date().getTime();
-                
-                const duration = (endTime - startTime) / 1000; // в секундах
+                const duration = (endTime - startTime) / 1000;
                 const speedMbps = ((fileSizeInBytes * 8) / (duration * 1024 * 1024)).toFixed(2);
-                
-                document.getElementById('speedValue').textContent = speedMbps;
-                
+
+                // RTT измеряем пингом (либо берем из API)
+                let rtt = "-";
+                if (connection && typeof connection.rtt === "number") {
+                    rtt = connection.rtt;
+                } else {
+                    try {
+                        const rttStart = performance.now();
+                        await fetch("https://www.google.com/images/branding/googlelogo/1x/googlelogo_light_color_92x30dp.png?cacheBust=" + Date.now(), { mode: 'no-cors' });
+                        rtt = Math.round(performance.now() - rttStart);
+                    } catch (e) { rtt = "-"; }
+                }
+
+                // Добавить точку на график
+                const date = new Date();
+                speedData.labels.push(date.toLocaleTimeString());
+                speedData.datasets[0].data.push(Number(speedMbps));
+                speedData.datasets[1].data.push(isNaN(rtt) || rtt === "-" ? null : Number(rtt));
+                if (speedChart) speedChart.update();
+
+                // Обновляем средние значения
+                updateAverages();
             } catch (error) {
-                alert('Ошибка при тестировании скорости: ' + error.message);
+                if (!auto) alert('Ошибка при тестировании скорости: ' + error.message);
             } finally {
-                button.textContent = '🚀 Проверить скорость';
-                button.disabled = false;
+                if (button) {
+                    button.textContent = '🚀 Проверить скорость';
+                    button.disabled = false;
+                }
             }
         }
-        
-        // Обновляем информацию при загрузке
+
         updateNetworkInfo();
-        
-        // Отслеживаем изменения соединения
         if (connection) {
             connection.addEventListener('change', updateNetworkInfo);
         }
-        
         window.addEventListener('online', updateNetworkInfo);
         window.addEventListener('offline', updateNetworkInfo);
-        
-        // Автообновление каждые 5 секунд
         setInterval(updateNetworkInfo, 5000);
+
+        setInterval(() => runSpeedTest(null, true), 10000);
+        runSpeedTest(null, true);
     </script>
 </body>
-  </html>
+</html>
