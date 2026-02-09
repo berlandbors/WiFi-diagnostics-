@@ -1,1 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiFi Диагностика</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 28px;
+        }
+        
+        .info-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .value {
+            color: #667eea;
+            font-weight: 500;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .speed-meter {
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .speed-value {
+            font-size: 48px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .speed-unit {
+            font-size: 18px;
+            color: #888;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛜 WiFi Диагностика</h1>
+        
+        <div class="info-card">
+            <div class="info-row">
+                <span class="label">Статус подключения:</span>
+                <span class="status online" id="connectionStatus">Проверка...</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Тип соединения:</span>
+                <span class="value" id="connectionType">-</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Эффективный тип:</span>
+                <span class="value" id="effectiveType">-</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Скорость загрузки:</span>
+                <span class="value" id="downlink">-</span>
+            </div>
+            <div class="info-row">
+                <span class="label">RTT (задержка):</span>
+                <span class="value" id="rtt">-</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Экономия трафика:</span>
+                <span class="value" id="saveData">-</span>
+            </div>
+        </div>
+        
+        <div class="speed-meter">
+            <div class="speed-value" id="speedValue">-</div>
+            <div class="speed-unit">Mbps</div>
+        </div>
+        
+        <button onclick="runSpeedTest()">🚀 Проверить скорость</button>
+        
+        <div class="warning" id="warning" style="display: none;"></div>
+    </div>
 
+    <script>
+        // Проверка поддержки Network Information API
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        
+        function updateNetworkInfo() {
+            // Статус онлайн/офлайн
+            const statusEl = document.getElementById('connectionStatus');
+            if (navigator.onLine) {
+                statusEl.textContent = 'Онлайн';
+                statusEl.className = 'status online';
+            } else {
+                statusEl.textContent = 'Офлайн';
+                statusEl.className = 'status offline';
+            }
+            
+            if (connection) {
+                // Тип соединения
+                document.getElementById('connectionType').textContent = connection.type || 'Неизвестно';
+                
+                // Эффективный тип (4g, 3g, 2g, slow-2g)
+                document.getElementById('effectiveType').textContent = connection.effectiveType || '-';
+                
+                // Скорость загрузки (Mbps)
+                if (connection.downlink) {
+                    document.getElementById('downlink').textContent = connection.downlink + ' Mbps';
+                    document.getElementById('speedValue').textContent = connection.downlink;
+                }
+                
+                // RTT (Round Trip Time) - задержка в миллисекундах
+                document.getElementById('rtt').textContent = connection.rtt ? connection.rtt + ' мс' : '-';
+                
+                // Режим экономии трафика
+                document.getElementById('saveData').textContent = connection.saveData ? 'Включена' : 'Выключена';
+                
+                // Предупреждения
+                showWarnings();
+            } else {
+                document.getElementById('warning').style.display = 'block';
+                document.getElementById('warning').textContent = '⚠️ Network Information API не поддерживается вашим браузером. Попробуйте Chrome/Edge.';
+            }
+        }
+        
+        function showWarnings() {
+            const warningEl = document.getElementById('warning');
+            let warnings = [];
+            
+            if (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g') {
+                warnings.push('⚠️ Очень медленное соединение');
+            }
+            
+            if (connection.rtt > 500) {
+                warnings.push('⚠️ Высокая задержка (RTT > 500ms)');
+            }
+            
+            if (connection.downlink < 1) {
+                warnings.push('⚠️ Низкая скорость загрузки');
+            }
+            
+            if (warnings.length > 0) {
+                warningEl.style.display = 'block';
+                warningEl.innerHTML = warnings.join('<br>');
+            } else {
+                warningEl.style.display = 'none';
+            }
+        }
+        
+        // Простой тест скорости
+        async function runSpeedTest() {
+            const button = event.target;
+            button.textContent = '⏳ Тестирование...';
+            button.disabled = true;
+            
+            try {
+                // Загружаем тестовый файл (используем изображение с GitHub)
+                const fileUrl = 'https://raw.githubusercontent.com/github/explore/main/topics/javascript/javascript.png';
+                const fileSizeInBytes = 50000; // примерный размер
+                
+                const startTime = new Date().getTime();
+                const response = await fetch(fileUrl + '?cacheBust=' + startTime);
+                await response.blob();
+                const endTime = new Date().getTime();
+                
+                const duration = (endTime - startTime) / 1000; // в секундах
+                const speedMbps = ((fileSizeInBytes * 8) / (duration * 1024 * 1024)).toFixed(2);
+                
+                document.getElementById('speedValue').textContent = speedMbps;
+                
+            } catch (error) {
+                alert('Ошибка при тестировании скорости: ' + error.message);
+            } finally {
+                button.textContent = '🚀 Проверить скорость';
+                button.disabled = false;
+            }
+        }
+        
+        // Обновляем информацию при загрузке
+        updateNetworkInfo();
+        
+        // Отслеживаем изменения соединения
+        if (connection) {
+            connection.addEventListener('change', updateNetworkInfo);
+        }
+        
+        window.addEventListener('online', updateNetworkInfo);
+        window.addEventListener('offline', updateNetworkInfo);
+        
+        // Автообновление каждые 5 секунд
+        setInterval(updateNetworkInfo, 5000);
+    </script>
+</body>
+  </html>
