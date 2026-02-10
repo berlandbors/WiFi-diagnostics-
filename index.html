@@ -29,43 +29,52 @@
             text-align: center;
             font-size: 28px;
         }
-        .info-card {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            border-left: 4px solid #667eea;
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
         }
-        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0; }
-        .info-row:last-child { border-bottom: none; }
-        .label { font-weight: 600; color: #555; }
-        .value { color: #667eea; font-weight: 500; }
-        .status {
-            display: inline-block;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        .status.online { background: #d4edda; color: #155724; }
-        .status.offline { background: #f8d7da; color: #721c24; }
-        button {
-            width: 100%;
-            padding: 15px;
+        .dashboard-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border: none;
-            border-radius: 10px;
+            padding: 25px;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .dashboard-card .icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        .dashboard-card .title {
             font-size: 16px;
             font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
         }
-        button:hover { transform: translateY(-2px); }
-        button:active { transform: translateY(0); }
+        .dashboard-card.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .dashboard-card.success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+        .dashboard-card.warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .dashboard-card.info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
         .speed-meter {
-            margin-top: 20px;
             text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
         }
         .speed-avg {
             font-size: 40px;
@@ -79,137 +88,308 @@
             margin-top: 5px;
         }
         .speed-unit { font-size: 18px; color: #888; }
+        button.main-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button.main-btn:hover { transform: translateY(-2px); }
+        button.main-btn:active { transform: translateY(0); }
+        button.main-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 700px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            animation: slideUp 0.3s;
+        }
+        .modal-header {
+            padding: 25px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .close {
+            color: white;
+            font-size: 35px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+            line-height: 1;
+        }
+        .close:hover {
+            transform: scale(1.2);
+        }
+        .modal-body {
+            padding: 30px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .label { font-weight: 600; color: #555; }
+        .value { color: #667eea; font-weight: 500; }
+        .status {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .status.online { background: #d4edda; color: #155724; }
+        .status.offline { background: #f8d7da; color: #721c24; }
+        #speedChart {
+            margin: 20px auto;
+            display: block;
+            background: #f8f9fa;
+            border-radius: 10px;
+            max-width: 100%;
+            width: 100% !important;
+            height: auto !important;
+        }
+        .average-info {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 16px;
+            color: #333;
+        }
+        .average-info span {
+            margin: 0 10px;
+            color: #667eea;
+            font-weight: 600;
+        }
+        .cand {
+            padding: 12px;
+            margin: 10px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            font-size: 13px;
+        }
+        .info-row2 {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .info-row2 label { color: #666; }
+        .info-row2 b { font-weight: 600; color: #667eea; font-family: monospace; word-break: break-all; }
         .warning {
             background: #fff3cd;
-            border-left-color: #ffc107;
             color: #856404;
             padding: 15px;
             border-radius: 8px;
             margin-top: 20px;
+            border-left: 4px solid #ffc107;
         }
-        #speedChart {
-            margin: 0 auto;
-            display: block;
-            background: #f8f9fa;
-            border-radius: 10px;
-            box-shadow: 0 4px 16px rgba(102,126,234,0.06);
-        }
-        .average-info {
-            margin-top: 10px;
+        .last-test-info {
             text-align: center;
-            font-size: 18px;
-            color: #333;
+            color: #888;
+            font-size: 14px;
+            margin-top: 10px;
         }
-        .average-info span {
-            margin: 0 12px;
-            color: #667eea;
-            font-weight: 600;
-        }
-        /* WebRTC Info */
-        #webrtc-info {
-            margin-top:32px;
-            padding:18px 13px;
-            background:#f7f8fd;
-            border-radius:13px;
-            box-shadow: 0 2px 10px #667eea19;
-        }
-        #webrtc-info h2 {
-            font-size: 20px;
-            color: #667eea;
-            margin-top:0; margin-bottom:8px;
-            text-align:left;
-        }
-        #webrtc-list small { color:#888; }
-        #webrtc-list .cand {
-            padding: 6px 0 4px 0;
-            border-bottom:1px solid #e7e8f7;
-            font-size:13px;
-        }
-        #webrtc-list .cand:last-child { border-bottom:none;}
-        /* IP/Browser Info */
-        #ip-browser-info {
-            margin-top:32px;
-            padding:18px 13px;
-            background:#f7fdfe;
-            border-radius:13px;
-            box-shadow: 0 2px 10px #8edbee1b;
-        }
-        #ip-browser-info h2 {
-            font-size: 20px;
-            color: #23cabf;
-            margin-top:0; margin-bottom:9px;
-            text-align:left;
-        }
-        #ipbrowser-list .info-row2 {
-            display:flex;justify-content:space-between;font-size:14px;padding:5px 0;
-        }
-        #ipbrowser-list .info-row2 label{color:#888;}
-        #ipbrowser-list .info-row2 b{font-weight:500;font-family:monospace;color:#24b720;}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🛜 WiFi Диагностика by Andrew Berlin</h1>
-        <p>@Berlandbor</p> <br>
-        <div class="info-card">
-            <div class="info-row">
-                <span class="label">Статус подключения:</span>
-                <span class="status online" id="connectionStatus">Проверка...</span>
-            </div>
-            <div class="info-row">
-                <span class="label">Тип соединения:</span>
-                <span class="value" id="connectionType">-</span>
-            </div>
-            <div class="info-row">
-                <span class="label">Эффективный тип:</span>
-                <span class="value" id="effectiveType">-</span>
-            </div>
-            <div class="info-row">
-                <span class="label">Скорость загрузки:</span>
-                <span class="value" id="downlink">-</span>
-            </div>
-            <div class="info-row">
-                <span class="label">RTT (задержка):</span>
-                <span class="value" id="rtt">-</span>
-            </div>
-            <div class="info-row">
-                <span class="label">Экономия трафика:</span>
-                <span class="value" id="saveData">-</span>
-            </div>
-        </div>
+        <h1>🛜 WiFi Диагностика</h1>
+        <p>by Andrew Berlin (@Berlandbor)</p>
+        
         <div class="speed-meter">
             <div class="speed-avg"><span id="speedAvgDisplay">-</span> <span class="speed-unit">Mbps</span></div>
             <div class="rtt-avg">Задержка: <span id="rttAvgDisplay">-</span> мс</div>
-        </div>
-        <button onclick="runSpeedTest(event)">🚀 Проверить скорость</button>
-        <div style="margin-top: 30px; text-align:center;">
-            <canvas id="speedChart" width="400" height="200"></canvas>
-            <div class="average-info">
-                Средняя скорость: <span id="avgSpeed">-</span> Mbps |
-                Средняя задержка: <span id="avgRtt">-</span> мс
+            <div class="last-test-info">
+                Последний тест: <span id="lastTestTime">-</span>
             </div>
         </div>
+        
+        <div class="dashboard-grid">
+            <div class="dashboard-card primary" onclick="openModal('networkModal')">
+                <div class="icon">📡</div>
+                <div class="title">Информация о сети</div>
+            </div>
+            <div class="dashboard-card success" onclick="openModal('speedModal')">
+                <div class="icon">⚡</div>
+                <div class="title">График скорости</div>
+            </div>
+            <div class="dashboard-card warning" onclick="openModal('webrtcModal')">
+                <div class="icon">🔗</div>
+                <div class="title">WebRTC данные</div>
+            </div>
+            <div class="dashboard-card info" onclick="openModal('deviceModal')">
+                <div class="icon">💻</div>
+                <div class="title">Информация об устройстве</div>
+            </div>
+        </div>
+        
+        <button class="main-btn" onclick="runSpeedTest(event)">🚀 Проверить скорость</button>
         <div class="warning" id="warning" style="display: none;"></div>
-        <!-- Новый Блок IP/Browser Info -->
-        <div id="ip-browser-info">
-            <h2>Инфо об устройстве и браузере</h2>
-            <div id="ipbrowser-list">
+    </div>
+
+    <!-- Network Info Modal -->
+    <div id="networkModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><span>📡</span> Информация о сети</h2>
+                <span class="close" onclick="closeModal('networkModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="info-row">
+                    <span class="label">Статус подключения:</span>
+                    <span class="status online" id="connectionStatus">Проверка...</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Тип соединения:</span>
+                    <span class="value" id="connectionType">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Эффективный тип:</span>
+                    <span class="value" id="effectiveType">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Скорость загрузки:</span>
+                    <span class="value" id="downlink">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">RTT (задержка):</span>
+                    <span class="value" id="rtt">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Экономия трафика:</span>
+                    <span class="value" id="saveData">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Speed Chart Modal -->
+    <div id="speedModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><span>⚡</span> График скорости</h2>
+                <span class="close" onclick="closeModal('speedModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="position: relative; height: 350px;">
+                    <canvas id="speedChart"></canvas>
+                </div>
+                <div class="average-info">
+                    Средняя скорость: <span id="avgSpeed">-</span> Mbps |
+                    Средняя задержка: <span id="avgRtt">-</span> мс
+                    <br>
+                    <small style="color: #888;">Всего тестов: <span id="totalTests">0</span></small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WebRTC Modal -->
+    <div id="webrtcModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><span>🔗</span> WebRTC данные</h2>
+                <span class="close" onclick="closeModal('webrtcModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="webrtc-list">Поиск данных...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Device Info Modal -->
+    <div id="deviceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><span>💻</span> Информация об устройстве</h2>
+                <span class="close" onclick="closeModal('deviceModal')">&times;</span>
+            </div>
+            <div class="modal-body">
                 <div class="info-row2"><label>Ваш локальный IP:</label> <b id="localIp">...</b></div>
                 <div class="info-row2"><label>Ваш внешний IP:</label> <b id="publicIp">...</b></div>
                 <div class="info-row2"><label>Браузер:</label> <b id="browserData">...</b></div>
                 <div class="info-row2"><label>Платформа:</label> <b id="platformData">...</b></div>
             </div>
         </div>
-        <!-- Блок WebRTC -->
-        <div id="webrtc-info">
-            <h2>Параметры WebRTC</h2>
-            <div id="webrtc-list">Поиск данных...</div>
-        </div>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
+        // Modal Functions
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+            document.body.style.overflow = 'hidden';
+            
+            if (modalId === 'speedModal' && speedChart) {
+                setTimeout(() => {
+                    speedChart.resize();
+                }, 100);
+            }
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+        
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        }
+
         // Network Information API
         const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        
         function updateNetworkInfo() {
             const statusEl = document.getElementById('connectionStatus');
             if (navigator.onLine) {
@@ -230,6 +410,7 @@
                 document.getElementById('warning').textContent = '⚠️ Network Information API не поддерживается вашим браузером. Попробуйте Chrome/Edge.';
             }
         }
+        
         function showWarnings() {
             const warningEl = document.getElementById('warning');
             let warnings = [];
@@ -262,7 +443,9 @@
                     borderWidth: 2,
                     fill: true,
                     tension: 0.4,
-                    yAxisID: 'y-speed'
+                    yAxisID: 'y-speed',
+                    pointRadius: 4,
+                    pointHoverRadius: 6
                 },
                 {
                     label: 'RTT (мс)',
@@ -272,76 +455,150 @@
                     borderWidth: 2,
                     fill: false,
                     tension: 0.4,
-                    yAxisID: 'y-rtt'
+                    yAxisID: 'y-rtt',
+                    pointRadius: 4,
+                    pointHoverRadius: 6
                 }
             ]
         };
+        
         let speedChart;
+        
+        // Форматирование времени с миллисекундами для точности
+        function formatTime(date) {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            const ms = String(date.getMilliseconds()).padStart(3, '0');
+            return `${hours}:${minutes}:${seconds}.${ms}`;
+        }
+        
         window.addEventListener('DOMContentLoaded', function() {
             const ctx = document.getElementById('speedChart').getContext('2d');
             speedChart = new Chart(ctx, {
                 type: 'line',
                 data: speedData,
                 options: {
-                    responsive: false,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                     plugins: {
-                        legend: { display: true }
+                        legend: { 
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 15
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 14 },
+                            bodyFont: { size: 13 },
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(2);
+                                        label += context.datasetIndex === 0 ? ' Mbps' : ' мс';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
                     },
                     scales: {
-                        x: { title: { display: true, text: 'Время' } },
+                        x: { 
+                            title: { display: true, text: 'Время' },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: { size: 10 },
+                                autoSkip: true,
+                                maxTicksLimit: 15
+                            }
+                        },
                         'y-speed': {
-                            title: { display: true, text: 'Mbps' },
+                            title: { display: true, text: 'Скорость (Mbps)' },
                             position: 'left',
-                            min: 0
+                            min: 0,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1);
+                                }
+                            }
                         },
                         'y-rtt': {
-                            title: { display: true, text: 'Задержка, мс' },
+                            title: { display: true, text: 'Задержка (мс)' },
                             position: 'right',
                             min: 0,
-                            grid: { drawOnChartArea: false }
+                            grid: { drawOnChartArea: false },
+                            ticks: {
+                                callback: function(value) {
+                                    return Math.round(value);
+                                }
+                            }
                         }
                     }
                 }
             });
+            
             showWebRTCResults();
             showIpBrowserInfo();
+            runSpeedTest(null, true);
         });
 
         function updateAverages() {
-            // Средняя скорость
             const speedArr = speedData.datasets[0].data;
             const avgSpeed = speedArr.length ? (speedArr.reduce((s, a) => s + a, 0) / speedArr.length).toFixed(2) : "-";
             document.getElementById('avgSpeed').textContent = avgSpeed;
             document.getElementById('speedAvgDisplay').textContent = avgSpeed;
             document.getElementById('downlink').textContent = avgSpeed === "-" ? "-" : (avgSpeed + " Mbps");
 
-            // Средний RTT
             const rttArr = speedData.datasets[1].data.filter(a => typeof a === "number" && !isNaN(a));
             const avgRtt = rttArr.length ? (rttArr.reduce((s, a) => s + a, 0) / rttArr.length).toFixed(0) : "-";
             document.getElementById('avgRtt').textContent = avgRtt;
             document.getElementById('rttAvgDisplay').textContent = avgRtt;
+            
+            document.getElementById('totalTests').textContent = speedArr.length;
         }
 
-        // Тест скорости + RTT (задержки)
+        let isTestRunning = false;
+
         async function runSpeedTest(event = null, auto = false) {
+            if (isTestRunning) {
+                console.log('Тест уже выполняется, пропускаем...');
+                return;
+            }
+            
+            isTestRunning = true;
             let button;
             if (event) {
                 button = event.target;
                 button.textContent = '⏳ Тестирование...';
                 button.disabled = true;
             }
+            
             try {
-                // Тест скорости (скачивание)
+                // Точная фиксация времени начала
+                const testStartTime = new Date();
+                
                 const fileUrl = 'https://raw.githubusercontent.com/github/explore/main/topics/javascript/javascript.png';
                 const fileSizeInBytes = 50000;
-                const startTime = new Date().getTime();
-                const response = await fetch(fileUrl + '?cacheBust=' + startTime);
+                const startTime = performance.now();
+                const response = await fetch(fileUrl + '?cacheBust=' + Date.now());
                 await response.blob();
-                const endTime = new Date().getTime();
+                const endTime = performance.now();
                 const duration = (endTime - startTime) / 1000;
                 const speedMbps = ((fileSizeInBytes * 8) / (duration * 1024 * 1024)).toFixed(2);
 
-                // RTT измеряем пингом (либо берем из API)
                 let rtt = "-";
                 if (connection && typeof connection.rtt === "number") {
                     rtt = connection.rtt;
@@ -350,21 +607,39 @@
                         const rttStart = performance.now();
                         await fetch("https://www.google.com/images/branding/googlelogo/1x/googlelogo_light_color_92x30dp.png?cacheBust=" + Date.now(), { mode: 'no-cors' });
                         rtt = Math.round(performance.now() - rttStart);
-                    } catch (e) { rtt = "-"; }
+                    } catch (e) { 
+                        rtt = "-"; 
+                    }
                 }
 
-                // Добавить точку на график
-                const date = new Date();
-                speedData.labels.push(date.toLocaleTimeString());
+                // Используем точное время начала теста
+                const timeLabel = formatTime(testStartTime);
+                
+                speedData.labels.push(timeLabel);
                 speedData.datasets[0].data.push(Number(speedMbps));
                 speedData.datasets[1].data.push(isNaN(rtt) || rtt === "-" ? null : Number(rtt));
-                if (speedChart) speedChart.update();
+                
+                // Ограничиваем до последних 30 измерений
+                if (speedData.labels.length > 30) {
+                    speedData.labels.shift();
+                    speedData.datasets[0].data.shift();
+                    speedData.datasets[1].data.shift();
+                }
+                
+                if (speedChart) {
+                    speedChart.update('none'); // Обновление без анимации для плавности
+                }
 
-                // Обновляем средние значения
+                document.getElementById('lastTestTime').textContent = timeLabel;
                 updateAverages();
+                
             } catch (error) {
-                if (!auto) alert('Ошибка при тестировании скорости: ' + error.message);
+                console.error('Ошибка при тестировании:', error);
+                if (!auto) {
+                    alert('Ошибка при тестировании скорости: ' + error.message);
+                }
             } finally {
+                isTestRunning = false;
                 if (button) {
                     button.textContent = '🚀 Проверить скорость';
                     button.disabled = false;
@@ -378,12 +653,17 @@
         }
         window.addEventListener('online', updateNetworkInfo);
         window.addEventListener('offline', updateNetworkInfo);
-        setInterval(updateNetworkInfo, 5000);
+        
+        // Обновляем информацию о сети каждые 5 секунд
+        setInterval(updateNetworkInfo, 500);
+        
+        // Автоматический тест каждые 10 секунд
+        setInterval(() => {
+            if (!isTestRunning) {
+                runSpeedTest(null, true);
+            }
+        }, 1000);
 
-        setInterval(() => runSpeedTest(null, true), 10000);
-        runSpeedTest(null, true);
-
-        // --- WEBRTC INFO BLOCK ---
         function getWebRTCNetworkInfo(callback) {
             let pc = new RTCPeerConnection({iceServers: [{ urls:'stun:stun.l.google.com:19302' }]});
             pc.createDataChannel("test");
@@ -414,29 +694,29 @@
                 }
                 list.innerHTML = results.map((r, i) =>
                     `<div class="cand">
-                        <b>Кандидат ${i+1}:</b>
+                        <b>Кандидат ${i+1}:</b><br>
                         IP: <b>${r.ip}</b><br>
-                        Тип: <b>${r.type}</b> &nbsp;|&nbsp; Сеть: <b>${r.networkType}</b>
+                        Тип: <b>${r.type}</b> | Сеть: <b>${r.networkType}</b>
                     </div>`
                 ).join('');
             });
         }
 
-        // --- IP + BROWSER INFO ---
         function showIpBrowserInfo() {
-            // Публичный IP
-            fetch("https://api.ipify.org?format=json").then(r=>r.json()).then(data=>{
-                document.getElementById('publicIp').textContent = data.ip;
-            }).catch(()=>{document.getElementById('publicIp').textContent = "Ошибка";})
+            fetch("https://api.ipify.org?format=json")
+                .then(r=>r.json())
+                .then(data=>{
+                    document.getElementById('publicIp').textContent = data.ip;
+                })
+                .catch(()=>{
+                    document.getElementById('publicIp').textContent = "Ошибка";
+                });
 
-            // Локальный IP (через WebRTC)
             getWebRTCNetworkInfo(cands => {
-                // Первый local (host) адрес
                 let ip = cands.find(c=>c.type==="host" && c.ip!=="127.0.0.1")?.ip || '—';
                 document.getElementById('localIp').textContent = ip;
             });
 
-            // Инфа о браузере
             let nav = navigator;
             let agent = (nav.userAgentData && nav.userAgentData.brands)
                 ? nav.userAgentData.brands.map(v=>v.brand + " " + v.version).join("; ")
