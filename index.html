@@ -504,6 +504,90 @@
             font-size: 11px;
             color: var(--amber);
         }
+
+        /* Location display block */
+        .location-display {
+            background: var(--bg-card);
+            border: 1px solid var(--green-dim);
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 8px rgba(0,255,65,0.1);
+        }
+
+        .location-label {
+            font-size: 11px;
+            color: var(--green);
+            letter-spacing: 2px;
+            text-align: center;
+            margin-bottom: 8px;
+            text-shadow: 0 0 6px rgba(0,255,65,0.3);
+        }
+
+        .location-address {
+            font-size: 13px;
+            color: var(--green);
+            line-height: 1.8;
+        }
+
+        .location-row {
+            display: flex;
+            align-items: flex-start;
+            margin: 6px 0;
+            gap: 8px;
+        }
+
+        .loc-icon {
+            color: var(--green-dim);
+            flex-shrink: 0;
+        }
+
+        .loc-label {
+            color: var(--green-dim);
+            min-width: 120px;
+            flex-shrink: 0;
+        }
+
+        .loc-value {
+            color: var(--green);
+            text-shadow: 0 0 4px rgba(0,255,65,0.4);
+            word-break: break-word;
+        }
+
+        .location-refresh-btn {
+            font-size: 11px;
+            color: var(--green);
+            background: transparent;
+            border: 1px solid var(--green);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--font);
+            letter-spacing: 1px;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+
+        .location-refresh-btn:hover {
+            background: rgba(0, 255, 65, 0.08);
+            box-shadow: 0 0 10px rgba(0,255,65,0.25);
+        }
+
+        .location-refresh-btn:active {
+            background: rgba(0, 255, 65, 0.15);
+        }
+
+        .location-refresh-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 480px) {
+            .loc-label {
+                min-width: 90px;
+                font-size: 11px;
+            }
+            .loc-value {
+                font-size: 11px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -519,6 +603,32 @@
         <div class="term-divider">──────────────────────────────────────────────────</div>
 
         <br>
+
+        <div class="location-display">
+            <div class="location-label">[ ТЕКУЩАЯ ЛОКАЦИЯ ]</div>
+            <div class="term-divider">──────────────────────────────────────────────────</div>
+            <div class="location-address">
+                <div class="location-row">
+                    <span class="loc-icon">&gt;</span>
+                    <span class="loc-label">СТАТУС:</span>
+                    <span id="locationStatus" class="loc-value">Определение местоположения...</span>
+                </div>
+                <div class="location-row" id="addressRow" style="display: none;">
+                    <span class="loc-icon">&gt;</span>
+                    <span class="loc-label">АДРЕС:</span>
+                    <span id="locationAddress" class="loc-value">—</span>
+                </div>
+                <div class="location-row" id="coordsRow" style="display: none;">
+                    <span class="loc-icon">&gt;</span>
+                    <span class="loc-label">КООРДИНАТЫ:</span>
+                    <span id="locationCoords" class="loc-value">—</span>
+                </div>
+            </div>
+            <div class="term-divider">──────────────────────────────────────────────────</div>
+            <div style="text-align: center; margin-top: 8px;">
+                <button class="location-refresh-btn" onclick="updateMainLocation()">[↻ ОБНОВИТЬ ЛОКАЦИЮ]</button>
+            </div>
+        </div>
 
         <div class="speed-meter">
             <div class="speed-meter-label">[ NETWORK SPEED MONITOR ]</div>
@@ -889,6 +999,7 @@
             showWebRTCResults();
             showIpBrowserInfo();
             runSpeedTest(null, true);
+            updateMainLocation();
         });
 
         function updateAverages() {
@@ -1065,6 +1176,121 @@
 
         let geoMap = null;
         let geoMarker = null;
+
+        // ─── Main Location Display ─────────────────────────────────────────────────
+
+        let cachedLocation = null;
+        let cachedAddress = null;
+        let lastLocationUpdate = null;
+
+        async function getAddressFromCoords(lat, lon) {
+            try {
+                const params = new URLSearchParams({ lat, lon, format: 'json', 'accept-language': 'ru' });
+                const response = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?${params}`,
+                    {
+                        headers: {
+                            'User-Agent': 'WiFi-Diagnostics/1.0'
+                        }
+                    }
+                );
+
+                if (!response.ok) throw new Error('Ошибка получения адреса');
+
+                const data = await response.json();
+
+                const address = data.address;
+                let fullAddress = '';
+
+                if (address.road) fullAddress += address.road;
+                if (address.house_number) fullAddress += ', ' + address.house_number;
+                if (address.city) fullAddress += ', ' + address.city;
+                else if (address.town) fullAddress += ', ' + address.town;
+                else if (address.village) fullAddress += ', ' + address.village;
+                if (address.country) fullAddress += ', ' + address.country;
+
+                return fullAddress || data.display_name;
+            } catch (error) {
+                console.error('Ошибка reverse geocoding:', error);
+                return null;
+            }
+        }
+
+        async function updateMainLocation() {
+            const statusEl = document.getElementById('locationStatus');
+            const addressEl = document.getElementById('locationAddress');
+            const coordsEl = document.getElementById('locationCoords');
+            const addressRow = document.getElementById('addressRow');
+            const coordsRow = document.getElementById('coordsRow');
+            const btn = document.querySelector('.location-refresh-btn');
+
+            if (btn) btn.disabled = true;
+
+            statusEl.textContent = 'Определение местоположения...';
+            statusEl.style.color = 'var(--amber)';
+            addressRow.style.display = 'none';
+            coordsRow.style.display = 'none';
+
+            if (!navigator.geolocation) {
+                statusEl.textContent = '[ERR] Геолокация не поддерживается браузером';
+                statusEl.style.color = 'var(--amber)';
+                if (btn) btn.disabled = false;
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+
+                    cachedLocation = { lat, lon, accuracy };
+                    lastLocationUpdate = new Date();
+
+                    statusEl.textContent = '[OK] Местоположение определено';
+                    statusEl.style.color = 'var(--green)';
+
+                    coordsEl.textContent = `${Math.abs(lat).toFixed(6)}° ${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(6)}° ${lon >= 0 ? 'E' : 'W'} (точность: ±${Math.round(accuracy)}м)`;
+                    coordsRow.style.display = 'flex';
+
+                    const address = await getAddressFromCoords(lat, lon);
+                    if (address) {
+                        cachedAddress = address;
+                        addressEl.textContent = address;
+                        addressRow.style.display = 'flex';
+                    } else {
+                        addressEl.textContent = 'Не удалось определить адрес';
+                        addressRow.style.display = 'flex';
+                    }
+
+                    if (btn) btn.disabled = false;
+                },
+                (error) => {
+                    let errorMsg = '';
+                    switch (error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMsg = '[ERR] Доступ к геолокации запрещен';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMsg = '[ERR] Информация о местоположении недоступна';
+                            break;
+                        case error.TIMEOUT:
+                            errorMsg = '[ERR] Превышено время ожидания';
+                            break;
+                        default:
+                            errorMsg = '[ERR] Неизвестная ошибка геолокации';
+                    }
+                    statusEl.textContent = errorMsg;
+                    statusEl.style.color = 'var(--amber)';
+                    if (btn) btn.disabled = false;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        }
 
         /** Open the geolocation modal and immediately request position. */
         function openGeoModal() {
