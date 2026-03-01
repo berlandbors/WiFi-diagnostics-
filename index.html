@@ -505,6 +505,33 @@
             color: var(--amber);
         }
 
+        /* Jamming progress bar */
+        .jam-progress {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-card);
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .jam-progress-bar {
+            height: 100%;
+            background: var(--green);
+            transition: width 0.3s;
+        }
+
+        /* Confidence level indicator */
+        .confidence-indicator {
+            display: inline-block;
+            padding: 4px 10px;
+            font-size: 11px;
+            border: 1px solid;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .confidence-high   { color: var(--green);  border-color: var(--green); }
+        .confidence-medium { color: var(--amber);  border-color: var(--amber); }
+        .confidence-low    { color: var(--yellow); border-color: var(--yellow); }
+
         /* Location display block */
         .location-display {
             background: var(--bg-card);
@@ -1355,18 +1382,26 @@
 
         // ─── Jamming / Interference Detection ─────────────────────────────────────
 
-        // Endpoints tested for reachability via fetch (no-cors)
+        // DNS domains used for resolution testing
+        const JAM_DNS_DOMAINS = ['google.com', 'cloudflare.com', 'github.com'];
+
+        // Endpoints tested for reachability via fetch (no-cors); priority 1 = critical, 2 = supplementary
         const JAM_ENDPOINTS = [
-            { name: 'Google',     url: 'https://www.google.com/generate_204' },
-            { name: 'Cloudflare', url: 'https://cloudflare.com/cdn-cgi/trace' },
-            { name: 'OpenDNS',    url: 'https://www.opendns.com/' }
+            { name: 'Google',     url: 'https://www.google.com/generate_204',  priority: 1 },
+            { name: 'Cloudflare', url: 'https://cloudflare.com/cdn-cgi/trace', priority: 1 },
+            { name: 'OpenDNS',    url: 'https://www.opendns.com/',              priority: 1 },
+            { name: 'GitHub',     url: 'https://github.com/',                   priority: 2 },
+            { name: 'Microsoft',  url: 'https://www.microsoft.com/',            priority: 2 },
+            { name: 'Amazon AWS', url: 'https://aws.amazon.com/',               priority: 2 },
+            { name: 'Яндекс',     url: 'https://ya.ru/',                        priority: 1 },
+            { name: 'ВКонтакте',  url: 'https://vk.com/',                       priority: 2 }
         ];
 
         let jamHistory = [];
         let lastJamRecord = null;
 
         /** Ping a single endpoint and return { name, rtt, success }. */
-        async function pingEndpoint(endpoint, timeoutMs = 5000) {
+        async function pingEndpoint(endpoint, timeoutMs = 3000) {
             const controller = new AbortController();
             const tid = setTimeout(() => controller.abort(), timeoutMs);
             const start = performance.now();
@@ -1378,6 +1413,61 @@
                 clearTimeout(tid);
                 return { name: endpoint.name, rtt: null, success: false };
             }
+        }
+
+        /** Test DNS resolution by probing domains and measuring RTT; returns { dnsFailureRate }. */
+        async function testDNSResolution() {
+            let failures = 0;
+            await Promise.all(JAM_DNS_DOMAINS.map(async domain => {
+                const controller = new AbortController();
+                const tid = setTimeout(() => controller.abort(), 3000);
+                try {
+                    await fetch(`https://${domain}/`, { mode: 'no-cors', signal: controller.signal });
+                    clearTimeout(tid);
+                } catch {
+                    clearTimeout(tid);
+                    failures++;
+                }
+            }));
+            return { dnsFailureRate: Math.round((failures / JAM_DNS_DOMAINS.length) * 100) };
+        }
+
+        /** Weighted scoring: 0–30 normal, 31–60 suspicious, 61–100 jamming. */
+        function calculateJammingScore(data) {
+            let score = 0;
+            score += Math.min(data.packetLoss * 0.4, 40);   // packet loss  → 0–40 pts
+            score += Math.min(data.jitter / 10, 25);         // jitter       → 0–25 pts
+            if (data.speedAnomaly) score += 20;              // speed drop   → 0–20 pts
+            score += Math.min(data.dnsFailureRate * 0.15, 15); // DNS issues → 0–15 pts
+            return Math.round(score);
+        }
+
+        /** Analyse recent jamHistory entries for degradation patterns. */
+        function analyzeJammingTrends() {
+            if (jamHistory.length < 3) {
+                return { trend: 'insufficient_data', degrading: false, periodicDips: false };
+            }
+            const recent = jamHistory.slice(-Math.min(10, jamHistory.length));
+            const lossValues = recent.map(r => r.packetLoss);
+            const avgLoss = lossValues.reduce((a, b) => a + b, 0) / lossValues.length;
+
+            // Degrading: latest two samples notably worse than earliest two
+            const degrading = lossValues.length >= 4 &&
+                lossValues.slice(-2).reduce((a, b) => a + b, 0) / 2 >
+                (lossValues.slice(0, 2).reduce((a, b) => a + b, 0) / 2) * 1.5;
+
+            // Periodic dips: alternating above/below-average pattern
+            let alternations = 0;
+            for (let i = 1; i < lossValues.length; i++) {
+                if ((lossValues[i] > avgLoss) !== (lossValues[i - 1] > avgLoss)) alternations++;
+            }
+            const periodicDips = alternations >= Math.floor(lossValues.length * 0.6);
+
+            const nonNormal = recent.filter(r => r.status !== 'normal').length;
+            const trend = nonNormal >= recent.length * 0.6 ? 'degraded' :
+                          nonNormal >= recent.length * 0.3 ? 'unstable' : 'stable';
+
+            return { trend, degrading, periodicDips, avgLoss: Math.round(avgLoss) };
         }
 
         /** Play a short alert beep using Web Audio API. */
@@ -1398,16 +1488,50 @@
             }
         }
 
-        /** Run a full jamming analysis and return the result record. */
-        async function runJammingCheck() {
-            const results = await Promise.all(JAM_ENDPOINTS.map(ep => pingEndpoint(ep)));
+        /**
+         * Run a full jamming analysis over N rounds and return the result record.
+         * @param {number} rounds - number of check rounds (default 1 for background, 3 for interactive)
+         * @param {function} [onProgress] - optional callback(text, pct) for UI progress updates
+         */
+        async function runJammingCheck(rounds = 1, onProgress) {
+            onProgress?.('Проверка доступности серверов (1/4)...', 20);
 
-            // Packet loss across tested endpoints
-            const failCount = results.filter(r => !r.success).length;
-            const packetLoss = Math.round((failCount / results.length) * 100);
+            // DNS test runs concurrently with endpoint rounds
+            const dnsPromise = testDNSResolution();
+            const allRounds = [];
 
-            // Jitter: standard deviation of successful RTTs
-            const rtts = results.filter(r => r.rtt !== null).map(r => r.rtt);
+            for (let i = 0; i < rounds; i++) {
+                if (i > 0) await new Promise(r => setTimeout(r, 500));
+                if (i === 1) onProgress?.('Тестирование DNS резолюции (2/4)...', 45);
+                if (i === 2) onProgress?.('Анализ изменений скорости (3/4)...', 70);
+                allRounds.push(await Promise.all(JAM_ENDPOINTS.map(ep => pingEndpoint(ep))));
+            }
+
+            onProgress?.('Финальный анализ (4/4)...', 90);
+            const dnsResult = await dnsPromise;
+
+            // Aggregate per-endpoint results across all rounds
+            const endpointSummary = JAM_ENDPOINTS.map((ep, i) => {
+                const epRounds = allRounds.map(round => round[i]);
+                const successCount = epRounds.filter(r => r.success).length;
+                const rtts = epRounds.filter(r => r.rtt !== null).map(r => r.rtt);
+                const avgRtt = rtts.length
+                    ? Math.round(rtts.reduce((a, b) => a + b, 0) / rtts.length)
+                    : null;
+                return {
+                    name: ep.name,
+                    priority: ep.priority,
+                    success: successCount >= Math.ceil(rounds / 2), // majority of rounds succeeded
+                    successRate: Math.round((successCount / rounds) * 100),
+                    rtt: avgRtt
+                };
+            });
+
+            const failCount = endpointSummary.filter(r => !r.success).length;
+            const packetLoss = Math.round((failCount / endpointSummary.length) * 100);
+
+            // Jitter: standard deviation of per-endpoint average RTTs
+            const rtts = endpointSummary.filter(r => r.rtt !== null).map(r => r.rtt);
             let jitter = 0;
             if (rtts.length >= 2) {
                 const avg = rtts.reduce((a, b) => a + b, 0) / rtts.length;
@@ -1420,26 +1544,32 @@
             const speeds = speedData.datasets[0].data;
             let speedAnomaly = false;
             if (speeds.length >= 10) {
-                const recent = speeds.slice(-5);
-                const older  = speeds.slice(-10, -5);
-                const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
-                const olderAvg  = older.reduce((a, b) => a + b, 0)  / older.length;
+                const recentSpeeds = speeds.slice(-5);
+                const olderSpeeds  = speeds.slice(-10, -5);
+                const recentAvg = recentSpeeds.reduce((a, b) => a + b, 0) / recentSpeeds.length;
+                const olderAvg  = olderSpeeds.reduce((a, b) => a + b, 0)  / olderSpeeds.length;
                 if (olderAvg > 0 && recentAvg < olderAvg * 0.3) speedAnomaly = true;
             }
 
-            // Determine overall status:
-            //   jamming    → ≥2 of 3 endpoints unreachable (multi-vector block)
-            //   suspicious → >30% packet loss OR jitter >100ms OR sustained speed drop
-            let status = 'normal';
-            if (failCount >= 2) {
-                status = 'jamming';
-            } else if (packetLoss > 30 || jitter > 100 || speedAnomaly) {
-                status = 'suspicious';
-            }
+            const checksPerformed = rounds * JAM_ENDPOINTS.length + JAM_DNS_DOMAINS.length;
+            const score = calculateJammingScore({
+                packetLoss, jitter, speedAnomaly,
+                dnsFailureRate: dnsResult.dnsFailureRate
+            });
+            const status = score >= 61 ? 'jamming' : score >= 31 ? 'suspicious' : 'normal';
+
+            // Confidence improves as jamHistory grows
+            const confidenceLevel = jamHistory.length >= 5 ? 'высокий' :
+                                    jamHistory.length >= 2 ? 'средний' : 'низкий';
+            const dataQuality = checksPerformed >= 20 ? 'отличная' :
+                                 checksPerformed >= 15 ? 'хорошая'  : 'удовлетворительная';
 
             const record = {
                 time: new Date(),
-                status, packetLoss, jitter, failCount, speedAnomaly, results
+                status, packetLoss, jitter, failCount, speedAnomaly,
+                results: endpointSummary,
+                dnsFailureRate: dnsResult.dnsFailureRate,
+                score, checksPerformed, confidenceLevel, dataQuality
             };
 
             jamHistory.push(record);
@@ -1471,33 +1601,71 @@
             await updateJamDisplay();
         }
 
-        /** Run check and refresh the jamming modal content. */
+        /** Run 3-round check with step-by-step progress and refresh the jamming modal content. */
         async function updateJamDisplay() {
-            document.getElementById('jam-status-display').innerHTML =
-                '<div class="dim-text">&gt; АНАЛИЗ СЕТИ...</div>';
-            document.getElementById('jam-metrics').innerHTML = '';
+            const statusEl  = document.getElementById('jam-status-display');
+            const metricsEl = document.getElementById('jam-metrics');
+            metricsEl.innerHTML = '';
 
-            const rec = await runJammingCheck();
+            statusEl.innerHTML = `
+                <div class="dim-text">&gt; Инициализация проверки...</div>
+                <div class="jam-progress"><div class="jam-progress-bar" style="width:5%"></div></div>
+            `;
 
-            // Status badge
-            const statusClass = rec.status === 'jamming' ? 'jamming' :
+            const rec = await runJammingCheck(3, (text, pct) => {
+                statusEl.innerHTML = `
+                    <div class="dim-text">&gt; ${text}</div>
+                    <div class="jam-progress"><div class="jam-progress-bar" style="width:${pct}%"></div></div>
+                `;
+            });
+
+            const trends = analyzeJammingTrends();
+
+            // Status badge + confidence indicator
+            const statusClass = rec.status === 'jamming'    ? 'jamming'    :
                                  rec.status === 'suspicious' ? 'suspicious' : 'normal';
-            const statusText  = rec.status === 'jamming'    ? '[JAM] ВОЗМОЖНОЕ ГЛУШЕНИЕ'       :
+            const statusText  = rec.status === 'jamming'    ? '[JAM] ВОЗМОЖНОЕ ГЛУШЕНИЕ'        :
                                  rec.status === 'suspicious' ? '[WARN] ПОДОЗРИТЕЛЬНАЯ АКТИВНОСТЬ' :
                                                                '[OK] НОРМАЛЬНАЯ РАБОТА';
+            const confClass   = rec.confidenceLevel === 'высокий' ? 'confidence-high'   :
+                                 rec.confidenceLevel === 'средний'  ? 'confidence-medium' : 'confidence-low';
 
-            document.getElementById('jam-status-display').innerHTML = `
-                <div class="jam-status ${statusClass}">${statusText}</div>
-                <div class="dim-text" style="font-size:11px;margin-bottom:10px;">
-                    &gt; Проверено: ${rec.time.toLocaleTimeString('ru-RU')}
+            statusEl.innerHTML = `
+                <div>
+                    <span class="jam-status ${statusClass}">${statusText}</span>
+                    <span class="confidence-indicator ${confClass}">Уверенность: ${rec.confidenceLevel}</span>
+                </div>
+                <div class="dim-text" style="font-size:11px;margin-top:6px;margin-bottom:10px;">
+                    &gt; Проверено: ${rec.time.toLocaleTimeString('ru-RU')} | Скор: ${rec.score}/100 | Проверок: ${rec.checksPerformed}
                 </div>
             `;
 
-            // Metrics
-            const lossColor   = rec.packetLoss > 30 ? 'var(--amber)' : 'var(--green)';
-            const jitterColor = rec.jitter     > 100 ? 'var(--amber)' : 'var(--green)';
+            // Colour thresholds
+            const lossColor   = rec.packetLoss      > 30  ? 'var(--amber)' : 'var(--green)';
+            const jitterColor = rec.jitter           > 100 ? 'var(--amber)' : 'var(--green)';
+            const dnsColor    = rec.dnsFailureRate   > 30  ? 'var(--amber)' : 'var(--green)';
+            const scoreColor  = rec.score            >= 61 ? 'var(--yellow)' :
+                                 rec.score            >= 31 ? 'var(--amber)' : 'var(--green)';
 
-            document.getElementById('jam-metrics').innerHTML = `
+            const trendText  = trends.trend === 'degraded'         ? '[WARN] Устойчивая деградация' :
+                                trends.trend === 'unstable'         ? '[WARN] Нестабильность'        :
+                                trends.trend === 'stable'           ? '[OK] Стабильно'               :
+                                                                      '[INFO] Недостаточно данных';
+            const trendColor = trends.trend === 'degraded' ? 'var(--yellow)' :
+                                trends.trend === 'unstable' ? 'var(--amber)'  : 'var(--green)';
+
+            const recommendations =
+                rec.status === 'jamming'
+                    ? 'Обнаружены серьёзные сетевые помехи. Рекомендуется сменить частотный диапазон (2.4/5 ГГц), проверить источники интерференции.'
+                    : rec.status === 'suspicious'
+                    ? 'Обнаружены аномалии. Проверьте загруженность канала и наличие соседних сетей.'
+                    : 'Сеть работает в штатном режиме.';
+
+            metricsEl.innerHTML = `
+                <div class="info-row">
+                    <span class="label">Скор помех:</span>
+                    <span class="value" style="color:${scoreColor}">${rec.score}/100</span>
+                </div>
                 <div class="info-row">
                     <span class="label">Потеря пакетов:</span>
                     <span class="value" style="color:${lossColor}">${rec.packetLoss}%</span>
@@ -1507,21 +1675,38 @@
                     <span class="value" style="color:${jitterColor}">${rec.jitter} мс</span>
                 </div>
                 <div class="info-row">
+                    <span class="label">DNS проблемы:</span>
+                    <span class="value" style="color:${dnsColor}">${rec.dnsFailureRate}%</span>
+                </div>
+                <div class="info-row">
                     <span class="label">Аномалия скорости:</span>
                     <span class="value" style="color:${rec.speedAnomaly ? 'var(--amber)' : 'var(--green)'}">
                         ${rec.speedAnomaly ? '[WARN] Обнаружена' : '[OK] Норма'}
                     </span>
                 </div>
+                <div class="info-row">
+                    <span class="label">Тренд:</span>
+                    <span class="value" style="color:${trendColor}">
+                        ${trendText}${trends.periodicDips ? ' (периодические провалы)' : ''}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Качество данных:</span>
+                    <span class="value" style="color:var(--green)">${rec.dataQuality} (${rec.checksPerformed} проверок)</span>
+                </div>
                 <div style="margin-top:12px;">
                     <div class="dim-text" style="font-size:12px;margin-bottom:6px;">&gt; ДОСТУПНОСТЬ СЕРВЕРОВ:</div>
                     ${rec.results.map(r => `
                         <div class="info-row">
-                            <span class="label">${r.name}:</span>
+                            <span class="label">${r.name}${r.priority === 1 ? ' ★' : ''}:</span>
                             <span class="value" style="color:${r.success ? 'var(--green)' : 'var(--amber)'}">
-                                ${r.success ? '[OK] ' + r.rtt + ' мс' : '[ERR] Недоступен'}
+                                ${r.success ? '[OK] ' + (r.rtt !== null ? r.rtt + ' мс' : '—') : '[ERR] Недоступен'} (${r.successRate}%)
                             </span>
                         </div>
                     `).join('')}
+                </div>
+                <div style="margin-top:12px;padding:8px;background:var(--bg-card);border:1px solid var(--green-dim);font-size:11px;color:var(--green)">
+                    &gt; РЕКОМЕНДАЦИИ: ${recommendations}
                 </div>
                 <button class="main-btn" onclick="updateJamDisplay()" style="margin-top:12px;">[JAM] ПОВТОРИТЬ АНАЛИЗ</button>
             `;
@@ -1562,7 +1747,8 @@
                 const rec = await runJammingCheck();
                 console.log('[JAM] Monitor:', rec.status,
                     '| Loss:', rec.packetLoss + '%',
-                    '| Jitter:', rec.jitter + 'ms');
+                    '| Jitter:', rec.jitter + 'ms',
+                    '| Score:', rec.score);
             } catch (e) {
                 console.error('[JAM] Monitor error:', e);
             }
