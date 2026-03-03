@@ -403,16 +403,13 @@ class WiFiNeuralAnalyzer {
         const recommendations = [];
         const quality = output.indexOf(Math.max(...output));
 
-        if (quality === 2) {
-            // Среднее качество
+        if (quality === 2 || quality === 3) {
             recommendations.push('Попробуйте переместиться ближе к роутеру');
             recommendations.push('Проверьте количество подключенных устройств');
             recommendations.push('Перезагрузите роутер');
-        } else if (quality === 3) {
-            // Плохое качество
-            recommendations.push('Попробуйте переместиться ближе к роутеру');
-            recommendations.push('Проверьте количество подключенных устройств');
-            recommendations.push('Перезагрузите роутер');
+        }
+
+        if (quality === 3) {
             recommendations.push('Проверьте физическое состояние кабелей и оборудования');
             recommendations.push('Свяжитесь с провайдером, если проблема не устраняется');
         }

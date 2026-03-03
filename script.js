@@ -1014,7 +1014,7 @@
             qualities.forEach((q, i) => {
                 const value      = distribution[q];
                 const isSelected = i === maxIndex;
-                const selectedMark = isSelected ? '<span style="color:var(--green);">\u2190 SELECTED</span>' : '';
+                const selectedMark = isSelected ? '<span class="matrix-selected-indicator">\u2190 SELECTED</span>' : '';
                 html += `
                     <div class="matrix-row${isSelected ? ' selected' : ''}">
                         <span class="matrix-label">${labels[i]}:</span>
