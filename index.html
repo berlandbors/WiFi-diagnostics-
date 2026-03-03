@@ -56,6 +56,24 @@
             </div>
         </div>
 
+        <div class="ai-analyzer">
+            <div class="ai-label">[ NEURAL NETWORK ANALYZER ]</div>
+            <div class="ai-status">
+                <div class="ai-quality">
+                    <span class="ai-quality-label">Network Quality:</span>
+                    <div class="ai-progress-bar">
+                        <div class="ai-progress-fill" id="aiQualityBar"></div>
+                    </div>
+                    <span class="ai-quality-value" id="aiQualityText">--% UNKNOWN</span>
+                </div>
+                <div class="ai-info">
+                    <span>&gt; Training Samples: <span id="aiSamples">0</span></span>
+                    <span>&gt; Model Accuracy: <span id="aiAccuracy">--%</span></span>
+                    <span>&gt; Confidence: <span id="aiConfidence">--%</span></span>
+                </div>
+            </div>
+        </div>
+
         <div class="dashboard-grid">
             <div class="dashboard-card primary" onclick="openModal('networkModal')">
                 <div class="icon">[NET]</div>
@@ -80,6 +98,10 @@
             <div class="dashboard-card" onclick="openJamModal()">
                 <div class="icon">[JAM]</div>
                 <div class="title">Детекция помех</div>
+            </div>
+            <div class="dashboard-card" onclick="openAIModal()">
+                <div class="icon">[AI]</div>
+                <div class="title">AI Диагностика</div>
             </div>
         </div>
 
@@ -205,8 +227,81 @@
         </div>
     </div>
 
+    <!-- AI Neural Network Modal -->
+    <div id="aiModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><span>[AI]</span> NEURAL NETWORK DIAGNOSTICS</h2>
+                <span class="close" onclick="closeModal('aiModal')">[X]</span>
+            </div>
+            <div class="modal-body">
+                <div class="ai-classification">
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="classification-title">[ CURRENT CLASSIFICATION ]</div>
+                    <div class="classification-result" id="aiClassResult">
+                        <div class="class-quality">Quality: <span id="aiQuality">--</span></div>
+                        <div class="class-confidence">Confidence: <span id="aiConfidenceVal">--%</span></div>
+                    </div>
+
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="classification-title">[ CONFIDENCE MATRIX ]</div>
+                    <div class="confidence-matrix" id="aiMatrix"></div>
+
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="classification-title">[ RECOMMENDATIONS ]</div>
+                    <div class="ai-recommendations" id="aiRecommendations"></div>
+
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="classification-title">[ MODEL STATISTICS ]</div>
+                    <div class="model-stats">
+                        <div class="info-row">
+                            <span class="label">Training Samples:</span>
+                            <span class="value" id="aiModelSamples">0</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Model Accuracy:</span>
+                            <span class="value" id="aiModelAccuracy">--%</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Last Trained:</span>
+                            <span class="value" id="aiLastTrained">Never</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Architecture:</span>
+                            <span class="value">6→8→6→4 (MLP)</span>
+                        </div>
+                    </div>
+
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="ai-training-viz" id="aiTrainingViz">
+                        <canvas id="aiLossChart" width="560" height="200"></canvas>
+                    </div>
+
+                    <div class="ai-controls">
+                        <button class="main-btn" onclick="retrainAI()">[RETRAIN] ПЕРЕОБУЧИТЬ МОДЕЛЬ</button>
+                        <button class="main-btn" onclick="resetAI()">[RESET] СБРОСИТЬ МОДЕЛЬ</button>
+                        <button class="main-btn" onclick="exportAI()">[EXPORT] ЭКСПОРТ МОДЕЛИ</button>
+                    </div>
+
+                    <div class="ai-feedback">
+                        <div class="term-divider">═══════════════════════════════════════</div>
+                        <div class="classification-title">[ USER FEEDBACK ]</div>
+                        <p class="dim-text">Как работает ваш интернет сейчас?</p>
+                        <div class="feedback-buttons">
+                            <button class="feedback-btn" onclick="provideFeedback('excellent')">[1] Отлично</button>
+                            <button class="feedback-btn" onclick="provideFeedback('good')">[2] Хорошо</button>
+                            <button class="feedback-btn" onclick="provideFeedback('fair')">[3] Средне</button>
+                            <button class="feedback-btn" onclick="provideFeedback('poor')">[4] Плохо</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="neural-network.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

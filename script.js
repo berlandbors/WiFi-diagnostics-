@@ -100,6 +100,9 @@
         };
         
         let speedChart;
+
+        // AI нейросетевой анализатор (инициализируется после DOMContentLoaded)
+        let wifiAI;
         
         // Форматирование времени с миллисекундами для точности
         function formatTime(date) {
@@ -207,6 +210,10 @@
             showIpBrowserInfo();
             runSpeedTest(null, true);
             updateMainLocation();
+
+            // Инициализация AI нейросетевого анализатора
+            wifiAI = new WiFiNeuralAnalyzer();
+            updateAIDisplay();
         });
 
         function updateAverages() {
@@ -286,6 +293,20 @@
 
                 document.getElementById('lastTestTime').textContent = timeLabel;
                 updateAverages();
+
+                // Анализ качества через нейросеть
+                if (wifiAI) {
+                    const metrics = {
+                        speed:          Number(speedMbps),
+                        rtt:            isNaN(rtt) || rtt === '-' ? 0 : Number(rtt),
+                        jitter:         calculateJitter(),
+                        packetLoss:     0,
+                        timeOfDay:      new Date().getHours() / 24,
+                        connectionType: connection ? (connection.effectiveType === '4g' ? 1 : 0) : 0.5
+                    };
+                    const analysis = wifiAI.analyze(metrics);
+                    if (analysis) updateAIDisplay(analysis);
+                }
                 
             } catch (error) {
                 console.error('Ошибка при тестировании:', error);
@@ -933,3 +954,277 @@
                 console.error('[JAM] Monitor error:', e);
             }
         }, 30000);
+
+        // ─── AI Neural Network Functions ─────────────────────────────────────────
+
+        /**
+         * Обновление UI панели AI анализатора.
+         * @param {object|null} analysis - результат wifiAI.analyze() или null
+         */
+        function updateAIDisplay(analysis) {
+            if (!wifiAI) return;
+
+            const stats = wifiAI.getModelStats();
+            document.getElementById('aiSamples').textContent = stats.trainingSamples;
+            document.getElementById('aiAccuracy').textContent = stats.accuracy.toFixed(1) + '%';
+
+            if (!analysis) return;
+
+            // Прогресс-бар и текст качества
+            const qualityBar  = document.getElementById('aiQualityBar');
+            const qualityText = document.getElementById('aiQualityText');
+            qualityBar.style.width = analysis.confidence.toFixed(1) + '%';
+            qualityText.textContent = analysis.confidence.toFixed(1) + '% ' + analysis.quality.toUpperCase();
+
+            // Confidence в панели
+            document.getElementById('aiConfidence').textContent = analysis.confidence.toFixed(1) + '%';
+
+            // В модальном окне
+            document.getElementById('aiQuality').textContent      = analysis.quality;
+            document.getElementById('aiConfidenceVal').textContent = analysis.confidence.toFixed(1) + '%';
+
+            // Матрица уверенности
+            updateConfidenceMatrix(analysis.distribution);
+
+            // Рекомендации
+            updateRecommendations(analysis.recommendations);
+
+            // Статистика модели
+            document.getElementById('aiModelSamples').textContent  = stats.trainingSamples;
+            document.getElementById('aiModelAccuracy').textContent  = stats.accuracy.toFixed(1) + '%';
+            document.getElementById('aiLastTrained').textContent    = stats.lastTrained || 'Never';
+        }
+
+        /**
+         * Обновление матрицы уверенности в модальном окне.
+         * @param {{ excellent, good, fair, poor }} distribution
+         */
+        function updateConfidenceMatrix(distribution) {
+            const matrixEl  = document.getElementById('aiMatrix');
+            const qualities = ['excellent', 'good', 'fair', 'poor'];
+            const labels    = ['Отличное', 'Хорошее', 'Среднее', 'Плохое'];
+
+            let maxIndex = 0;
+            let maxValue = 0;
+            qualities.forEach((q, i) => {
+                if (distribution[q] > maxValue) { maxValue = distribution[q]; maxIndex = i; }
+            });
+
+            let html = '';
+            qualities.forEach((q, i) => {
+                const value      = distribution[q];
+                const isSelected = i === maxIndex;
+                const selectedMark = isSelected ? '<span style="color:var(--green);">\u2190 SELECTED</span>' : '';
+                html += `
+                    <div class="matrix-row${isSelected ? ' selected' : ''}">
+                        <span class="matrix-label">${labels[i]}:</span>
+                        <div class="matrix-bar">
+                            <div class="matrix-bar-fill" style="width:${value.toFixed(1)}%"></div>
+                        </div>
+                        <span class="matrix-value">${value.toFixed(1)}%</span>
+                        ${selectedMark}
+                    </div>
+                `;
+            });
+
+            matrixEl.innerHTML = html;
+        }
+
+        /**
+         * Обновление списка рекомендаций в модальном окне.
+         * @param {string[]} recommendations
+         */
+        function updateRecommendations(recommendations) {
+            const recEl = document.getElementById('aiRecommendations');
+            if (!recommendations || recommendations.length === 0) {
+                recEl.innerHTML = '<div class="dim-text">&gt; Рекомендаций нет. Соединение работает нормально.</div>';
+                return;
+            }
+            let html = '';
+            recommendations.forEach(rec => {
+                const item = document.createElement('div');
+                item.className = 'recommendation-item';
+                item.textContent = rec;
+                html += item.outerHTML;
+            });
+            recEl.innerHTML = html;
+        }
+
+        /** Открыть модальное окно AI и обновить данные. */
+        function openAIModal() {
+            openModal('aiModal');
+
+            if (!wifiAI) return;
+
+            const lastMetrics = getLastSpeedTestMetrics();
+            if (lastMetrics) {
+                const analysis = wifiAI.analyze(lastMetrics);
+                if (analysis) updateAIDisplay(analysis);
+            }
+
+            // Нарисовать график обучения
+            if (wifiAI.network.trainingLossHistory && wifiAI.network.trainingLossHistory.length > 0) {
+                drawTrainingChart(wifiAI.network.trainingLossHistory);
+            }
+        }
+
+        /** Переобучить модель и показать результат. */
+        function retrainAI() {
+            if (!wifiAI) return;
+            const result = wifiAI.retrain();
+            alert('[AI] Модель переобучена!\nПотери: ' + result.finalLoss.toFixed(4) + '\nТочность: ' + result.accuracy.toFixed(1) + '%');
+            updateAIDisplay();
+            drawTrainingChart(result.lossHistory);
+        }
+
+        /** Сбросить модель и переинициализировать с предобучением. */
+        function resetAI() {
+            if (!confirm('[WARNING] Вы уверены? Все данные обучения будут удалены.')) return;
+            localStorage.removeItem('wifiAiModel');
+            wifiAI = new WiFiNeuralAnalyzer();
+            alert('[AI] Модель сброшена и переинициализирована.');
+            updateAIDisplay();
+        }
+
+        /** Экспортировать модель в JSON-файл. */
+        function exportAI() {
+            if (!wifiAI) return;
+            const modelData = wifiAI.exportModel();
+            const blob = new Blob([modelData], { type: 'application/json' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = 'wifi-ai-model-' + Date.now() + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /**
+         * Принять обратную связь пользователя и добавить обучающий пример.
+         * @param {'excellent'|'good'|'fair'|'poor'} quality
+         */
+        function provideFeedback(quality) {
+            const qualityMap = {
+                'excellent': [1, 0, 0, 0],
+                'good':      [0, 1, 0, 0],
+                'fair':      [0, 0, 1, 0],
+                'poor':      [0, 0, 0, 1]
+            };
+
+            const lastMetrics = getLastSpeedTestMetrics();
+            if (!lastMetrics) {
+                alert('[ERROR] Сначала выполните тест скорости!');
+                return;
+            }
+
+            wifiAI.learn(lastMetrics, qualityMap[quality]);
+            alert('[AI] Спасибо за обратную связь! Модель обучается...');
+            updateAIDisplay();
+        }
+
+        /**
+         * Получить метрики последнего теста скорости.
+         * @returns {object|null}
+         */
+        function getLastSpeedTestMetrics() {
+            if (speedData.datasets[0].data.length === 0) return null;
+
+            const lastSpeed = speedData.datasets[0].data[speedData.datasets[0].data.length - 1];
+            const lastRtt   = speedData.datasets[1].data[speedData.datasets[1].data.length - 1];
+
+            return {
+                speed:          lastSpeed || 0,
+                rtt:            (lastRtt && !isNaN(lastRtt)) ? lastRtt : 0,
+                jitter:         calculateJitter(),
+                packetLoss:     0,
+                timeOfDay:      new Date().getHours() / 24,
+                connectionType: connection ? (connection.effectiveType === '4g' ? 1 : 0) : 0.5
+            };
+        }
+
+        /**
+         * Вычислить джиттер (среднее абсолютное отклонение RTT).
+         * @returns {number}
+         */
+        function calculateJitter() {
+            const rttData = speedData.datasets[1].data.filter(v => typeof v === 'number' && !isNaN(v));
+            if (rttData.length < 2) return 0;
+
+            let sum = 0;
+            for (let i = 1; i < rttData.length; i++) {
+                sum += Math.abs(rttData[i] - rttData[i - 1]);
+            }
+            return sum / (rttData.length - 1);
+        }
+
+        /**
+         * Нарисовать график истории потерь при обучении на canvas.
+         * @param {number[]} lossHistory
+         */
+        function drawTrainingChart(lossHistory) {
+            const canvas = document.getElementById('aiLossChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            // Очистка холста
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!lossHistory || lossHistory.length === 0) {
+                ctx.fillStyle = '#00cc33';
+                ctx.font = '12px "Courier New"';
+                ctx.fillText('> No training data available', 20, 100);
+                return;
+            }
+
+            const padding = 40;
+            const width   = canvas.width  - padding * 2;
+            const height  = canvas.height - padding * 2;
+            const maxLoss = Math.max(...lossHistory);
+            const minLoss = Math.min(...lossHistory);
+
+            // Рисуем оси
+            ctx.strokeStyle = '#00cc33';
+            ctx.lineWidth   = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            ctx.stroke();
+
+            // Подписи осей
+            ctx.fillStyle = '#00cc33';
+            ctx.font      = '11px "Courier New"';
+            ctx.fillText('Loss',  5,                        padding);
+            ctx.fillText('Epoch', canvas.width - padding,   canvas.height - padding + 20);
+
+            // График потерь
+            ctx.strokeStyle = '#00ff41';
+            ctx.lineWidth   = 2;
+            ctx.beginPath();
+
+            lossHistory.forEach((loss, i) => {
+                const x = padding + (i / (lossHistory.length - 1 || 1)) * width;
+                const y = canvas.height - padding - ((loss - minLoss) / (maxLoss - minLoss || 1)) * height;
+                if (i === 0) ctx.moveTo(x, y);
+                else         ctx.lineTo(x, y);
+            });
+
+            ctx.stroke();
+
+            // Точки на графике
+            ctx.fillStyle = '#00ff41';
+            lossHistory.forEach((loss, i) => {
+                const x = padding + (i / (lossHistory.length - 1 || 1)) * width;
+                const y = canvas.height - padding - ((loss - minLoss) / (maxLoss - minLoss || 1)) * height;
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Вывод финального значения потерь
+            const finalLoss = lossHistory[lossHistory.length - 1];
+            ctx.fillStyle = '#00ff41';
+            ctx.font      = '12px "Courier New"';
+            ctx.fillText('Final Loss: ' + finalLoss.toFixed(4), padding, 20);
+        }
