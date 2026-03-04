@@ -852,3 +852,146 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* ─── Prediction Widget ──────────────────────────────────────────────────── */
+
+        .prediction-widget {
+            border: 1px solid var(--green-dim);
+            background: var(--bg-card);
+            padding: 14px 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 8px rgba(0,255,65,0.08);
+        }
+
+        .prediction-widget-label {
+            font-size: 11px;
+            color: var(--green-dim);
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+
+        .forecast-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .forecast-item {
+            display: grid;
+            grid-template-columns: 60px 1fr 90px;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .forecast-time {
+            font-size: 11px;
+            color: var(--green-dim);
+            white-space: nowrap;
+        }
+
+        .forecast-bar-wrap {
+            background: rgba(0,255,65,0.05);
+            border: 1px solid rgba(0,255,65,0.2);
+            height: 14px;
+            overflow: hidden;
+        }
+
+        .forecast-bar {
+            height: 100%;
+            width: 0%;
+            transition: width 0.4s ease, background 0.4s ease;
+        }
+
+        .forecast-bar.quality-excellent { background: #00ff41; box-shadow: 0 0 6px #00ff41; }
+        .forecast-bar.quality-good      { background: #00cc33; }
+        .forecast-bar.quality-fair      { background: var(--amber); }
+        .forecast-bar.quality-poor      { background: #ff3333; box-shadow: 0 0 6px #ff3333; }
+
+        .forecast-label {
+            font-size: 11px;
+            color: var(--green);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        /* ─── Usage Bar ──────────────────────────────────────────────────────────── */
+
+        .usage-bar-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .usage-bar-label {
+            font-size: 11px;
+            color: var(--green-dim);
+            white-space: nowrap;
+        }
+
+        .usage-bar-track {
+            flex: 1;
+            background: rgba(0,255,65,0.05);
+            border: 1px solid rgba(0,255,65,0.2);
+            height: 10px;
+            overflow: hidden;
+        }
+
+        .usage-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--green-dim);
+            transition: width 0.4s ease, background 0.4s ease;
+        }
+
+        .usage-bar.level-notice   { background: var(--green); }
+        .usage-bar.level-warning  { background: var(--amber); }
+        .usage-bar.level-danger   { background: #ff6600; }
+        .usage-bar.level-critical { background: #ff3333; }
+
+        .usage-bar-value {
+            font-size: 11px;
+            color: var(--green-dim);
+            white-space: nowrap;
+        }
+
+        /* ─── Prediction Modal Sections ─────────────────────────────────────────── */
+
+        .prediction-section {
+            margin-bottom: 8px;
+        }
+
+        .prediction-section .dim-text {
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .pred-forecast-row {
+            display: grid;
+            grid-template-columns: 70px 1fr 100px;
+            align-items: center;
+            gap: 10px;
+            margin: 6px 0;
+            font-size: 12px;
+        }
+
+        .pred-pattern-row {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            margin: 4px 0;
+        }
+
+        .pred-pattern-row .label {
+            color: var(--green-dim);
+            min-width: 120px;
+        }
+
+        @media (max-width: 480px) {
+            .forecast-item {
+                grid-template-columns: 55px 1fr 80px;
+            }
+            .pred-forecast-row {
+                grid-template-columns: 60px 1fr 90px;
+            }
+        }
