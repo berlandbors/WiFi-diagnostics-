@@ -8,6 +8,10 @@
                     speedChart.resize();
                 }, 100);
             }
+
+            if (modalId === 'predictionModal') {
+                updatePredictionModal();
+            }
         }
         
         function closeModal(modalId) {
@@ -103,6 +107,13 @@
 
         // AI нейросетевой анализатор (инициализируется после DOMContentLoaded)
         let wifiAI;
+
+        // Система прогнозирования и хранилища (инициализируются после DOMContentLoaded)
+        let storageManager;
+        let predictionNetwork;
+
+        // Ссылка на Chart для исторического графика
+        let historicalChartInstance = null;
         
         // Форматирование времени с миллисекундами для точности
         function formatTime(date) {
@@ -214,6 +225,18 @@
             // Инициализация AI нейросетевого анализатора
             wifiAI = new WiFiNeuralAnalyzer();
             updateAIDisplay();
+
+            // Инициализация системы прогнозирования и хранилища
+            storageManager    = new SmartStorageManager();
+            predictionNetwork = new TimeSeriesPredictor();
+            updatePredictionDisplay();
+
+            // Автообновление прогноза каждые 5 минут
+            setInterval(() => {
+                if (storageManager.getStatus().total >= 10) {
+                    updatePredictionDisplay();
+                }
+            }, 5 * 60 * 1000);
         });
 
         function updateAverages() {
@@ -306,6 +329,31 @@
                     };
                     const analysis = wifiAI.analyze(metrics);
                     if (analysis) updateAIDisplay(analysis);
+
+                    // Сохраняем результат в базу данных прогнозирования
+                    if (storageManager) {
+                        const now = new Date();
+                        storageManager.addRecord({
+                            timestamp:      Date.now(),
+                            speed:          metrics.speed,
+                            rtt:            metrics.rtt,
+                            jitter:         metrics.jitter,
+                            packetLoss:     metrics.packetLoss,
+                            quality:        analysis ? analysis.quality : 'Среднее',
+                            hour:           now.getHours(),
+                            dayOfWeek:      now.getDay(),
+                            connectionType: 'wifi'
+                        });
+
+                        // Периодическое переобучение каждые 20 тестов
+                        predictionNetwork.testsSinceRetrain++;
+                        if (predictionNetwork.testsSinceRetrain >= 20) {
+                            predictionNetwork.trainOnData(storageManager.getRecords());
+                            predictionNetwork.testsSinceRetrain = 0;
+                        }
+
+                        updatePredictionDisplay();
+                    }
                 }
                 
             } catch (error) {
@@ -1227,4 +1275,305 @@
             ctx.fillStyle = '#00ff41';
             ctx.font      = '12px "Courier New"';
             ctx.fillText('Final Loss: ' + finalLoss.toFixed(4), padding, 20);
+        }
+
+
+        // ─── Функции прогнозирования и управления базой данных ──────────────────
+
+        /**
+         * Вспомогательная функция: цвет CSS-класса по названию качества.
+         */
+        function qualityToCssClass(quality) {
+            switch (quality) {
+                case 'Отличное': return 'quality-excellent';
+                case 'Хорошее':  return 'quality-good';
+                case 'Среднее':  return 'quality-fair';
+                case 'Плохое':   return 'quality-poor';
+                default:         return 'quality-fair';
+            }
+        }
+
+        /**
+         * Обновление виджета прогноза на главной странице.
+         */
+        function updatePredictionDisplay() {
+            if (!storageManager || !predictionNetwork) return;
+
+            // Обновляем индикатор заполненности БД
+            const status = storageManager.getStatus();
+            const usageBar = document.getElementById('usageBar');
+            const usageText = document.getElementById('usageBarText');
+            if (usageBar && usageText) {
+                usageBar.style.width = status.fillPercent + '%';
+                usageBar.className = 'usage-bar level-' + status.level;
+                usageText.textContent = status.total + ' / ' + status.maxRecords;
+            }
+
+            // Получаем прогноз
+            const records = storageManager.getRecords();
+            if (records.length < predictionNetwork.windowSize) {
+                // Недостаточно данных
+                [15, 30, 60].forEach(m => {
+                    const bar = document.getElementById('forecastBar' + m);
+                    const lbl = document.getElementById('forecastLabel' + m);
+                    if (bar) { bar.style.width = '0%'; bar.className = 'forecast-bar'; }
+                    if (lbl) lbl.textContent = '--';
+                });
+                return;
+            }
+
+            const result = predictionNetwork.predict(records);
+            if (!result) return;
+
+            [15, 30, 60].forEach(minutes => {
+                const pred = result.predictions[minutes];
+                if (!pred) return;
+                const bar = document.getElementById('forecastBar' + minutes);
+                const lbl = document.getElementById('forecastLabel' + minutes);
+                if (bar) {
+                    bar.style.width = pred.confidence + '%';
+                    bar.className = 'forecast-bar ' + qualityToCssClass(pred.quality);
+                }
+                if (lbl) lbl.textContent = pred.quality + ' ' + pred.confidence + '%';
+            });
+        }
+
+        /**
+         * Обновление прогноза по требованию (кнопка в модальном окне).
+         */
+        function predictNow() {
+            if (!storageManager || !predictionNetwork) return;
+            const records = storageManager.getRecords();
+            if (records.length >= predictionNetwork.windowSize) {
+                predictionNetwork.trainOnData(records);
+            }
+            updatePredictionDisplay();
+            updatePredictionModal();
+        }
+
+        /**
+         * Открытие и обновление модального окна прогноза.
+         */
+        function updatePredictionModal() {
+            if (!storageManager || !predictionNetwork) return;
+
+            // Статус БД
+            const status = storageManager.getStatus();
+            const dbStatusEl = document.getElementById('predDbStatus');
+            if (dbStatusEl) {
+                dbStatusEl.textContent =
+                    '> Записей: ' + status.total + ' / ' + status.maxRecords +
+                    ' (' + status.fillPercent + '%)' +
+                    ' | Размер: ' + (status.sizeBytes / 1024).toFixed(1) + ' КБ' +
+                    (status.lastOperation ? ' | ' + status.lastOperation : '');
+            }
+
+            // Индикатор заполненности в модальном окне
+            const modalBar = document.getElementById('modalUsageBar');
+            const modalText = document.getElementById('modalUsageText');
+            if (modalBar && modalText) {
+                modalBar.style.width = status.fillPercent + '%';
+                modalBar.className = 'usage-bar level-' + status.level;
+                modalText.textContent = status.total + ' / ' + status.maxRecords;
+            }
+
+            // Детали прогноза
+            displayForecastDetails();
+
+            // Анализ паттернов
+            displayPatternAnalysis();
+
+            // Исторический график
+            drawHistoricalChart();
+        }
+
+        /**
+         * Отображение деталей прогноза в модальном окне.
+         */
+        function displayForecastDetails() {
+            const el = document.getElementById('predForecastDetails');
+            if (!el) return;
+
+            const records = storageManager.getRecords();
+            if (records.length < predictionNetwork.windowSize) {
+                el.textContent = '> Недостаточно данных. Нужно минимум ' + predictionNetwork.windowSize + ' измерений.';
+                return;
+            }
+
+            const result = predictionNetwork.predict(records);
+            if (!result) {
+                el.textContent = '> Прогноз недоступен.';
+                return;
+            }
+
+            let html = '';
+            [15, 30, 60].forEach(minutes => {
+                const pred = result.predictions[minutes];
+                if (!pred) return;
+                const cssClass = qualityToCssClass(pred.quality);
+                html += '<div class="pred-forecast-row">';
+                html += '<span class="forecast-time">+' + minutes + ' мин</span>';
+                html += '<div class="forecast-bar-wrap"><div class="forecast-bar ' + cssClass + '" style="width:' + pred.confidence + '%"></div></div>';
+                html += '<span class="forecast-label">' + pred.quality + ' ' + pred.confidence + '%</span>';
+                html += '</div>';
+            });
+            el.innerHTML = html;
+        }
+
+        /**
+         * Отображение анализа паттернов.
+         */
+        function displayPatternAnalysis() {
+            const el = document.getElementById('predPatternAnalysis');
+            if (!el) return;
+
+            const records = storageManager.getRecords();
+            const patterns = predictionNetwork.analyzePatterns(records);
+
+            if (!patterns) {
+                el.textContent = '> Недостаточно данных для анализа паттернов (нужно минимум 5 измерений).';
+                return;
+            }
+
+            let html = '';
+
+            // Средняя скорость
+            html += '<div class="pred-pattern-row"><span class="label">&gt; Средняя скорость:</span><span>' + patterns.avgSpeed + ' Mbps</span></div>';
+            html += '<div class="pred-pattern-row"><span class="label">&gt; Всего измерений:</span><span>' + patterns.totalPoints + '</span></div>';
+
+            // Лучшие часы
+            if (patterns.bestHours.length) {
+                html += '<div class="pred-pattern-row"><span class="label">&gt; Лучшие часы:</span><span>';
+                html += patterns.bestHours.map(h => h.hour + ':00 (' + h.speed + ' Mbps)').join(', ');
+                html += '</span></div>';
+            }
+
+            // Худшие часы
+            if (patterns.worstHours.length) {
+                html += '<div class="pred-pattern-row"><span class="label">&gt; Худшие часы:</span><span>';
+                html += patterns.worstHours.map(h => h.hour + ':00 (' + h.speed + ' Mbps)').join(', ');
+                html += '</span></div>';
+            }
+
+            el.innerHTML = html;
+        }
+
+        /**
+         * Рисование исторического графика за 24 часа.
+         */
+        function drawHistoricalChart() {
+            const canvas = document.getElementById('historicalChart');
+            if (!canvas) return;
+
+            const records = storageManager.getRecentRecords(24);
+            if (!records.length) return;
+
+            // Уничтожаем предыдущий экземпляр Chart.js
+            if (historicalChartInstance) {
+                historicalChartInstance.destroy();
+                historicalChartInstance = null;
+            }
+
+            const labels = records.map(r => {
+                const d = new Date(r.timestamp);
+                return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+            });
+            const speeds = records.map(r => r.speed || 0);
+            const rtts   = records.map(r => r.rtt   || 0);
+
+            const ctx = canvas.getContext('2d');
+            historicalChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Speed (Mbps)',
+                            data: speeds,
+                            borderColor: '#00ff41',
+                            backgroundColor: 'rgba(0,255,65,0.08)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            yAxisID: 'y-speed',
+                            pointRadius: 2
+                        },
+                        {
+                            label: 'RTT (ms)',
+                            data: rtts,
+                            borderColor: '#ffb000',
+                            backgroundColor: 'rgba(255,176,0,0.08)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            yAxisID: 'y-rtt',
+                            pointRadius: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#00cc33',
+                                font: { family: "'Courier New', monospace", size: 11 }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#00cc33', font: { family: "'Courier New', monospace", size: 10 }, maxTicksLimit: 8 },
+                            grid: { color: 'rgba(0,255,65,0.1)' }
+                        },
+                        'y-speed': {
+                            position: 'left',
+                            ticks: { color: '#00ff41', font: { family: "'Courier New', monospace", size: 10 } },
+                            grid: { color: 'rgba(0,255,65,0.1)' }
+                        },
+                        'y-rtt': {
+                            position: 'right',
+                            ticks: { color: '#ffb000', font: { family: "'Courier New', monospace", size: 10 } },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Оптимизация базы данных.
+         */
+        function optimizeDatabase() {
+            if (!storageManager) return;
+            const report = storageManager.optimize();
+            alert('[OPT] Оптимизация завершена. Удалено: ' + report.removed + ', осталось: ' + report.remaining);
+            updatePredictionDisplay();
+            updatePredictionModal();
+        }
+
+        /**
+         * Экспорт базы данных.
+         */
+        function exportDatabase() {
+            if (!storageManager) return;
+            const json = storageManager.exportData();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = 'wifi_db_' + new Date().toISOString().slice(0, 10) + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /**
+         * Очистка базы данных после подтверждения.
+         */
+        function clearDatabase() {
+            if (!storageManager) return;
+            if (!confirm('[CLR] Вы уверены, что хотите очистить всю базу данных измерений?')) return;
+            storageManager.clear();
+            if (predictionNetwork) predictionNetwork.reset();
+            updatePredictionDisplay();
+            updatePredictionModal();
         }

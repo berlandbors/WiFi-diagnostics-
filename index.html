@@ -74,6 +74,41 @@
             </div>
         </div>
 
+        <!-- Виджет прогноза сети -->
+        <div class="prediction-widget" id="predictionWidget">
+            <div class="prediction-widget-label">[ ПРОГНОЗ КАЧЕСТВА СЕТИ ]</div>
+            <div class="forecast-timeline" id="forecastTimeline">
+                <div class="forecast-item">
+                    <div class="forecast-time">+15 мин</div>
+                    <div class="forecast-bar-wrap">
+                        <div class="forecast-bar" id="forecastBar15"></div>
+                    </div>
+                    <div class="forecast-label" id="forecastLabel15">--</div>
+                </div>
+                <div class="forecast-item">
+                    <div class="forecast-time">+30 мин</div>
+                    <div class="forecast-bar-wrap">
+                        <div class="forecast-bar" id="forecastBar30"></div>
+                    </div>
+                    <div class="forecast-label" id="forecastLabel30">--</div>
+                </div>
+                <div class="forecast-item">
+                    <div class="forecast-time">+60 мин</div>
+                    <div class="forecast-bar-wrap">
+                        <div class="forecast-bar" id="forecastBar60"></div>
+                    </div>
+                    <div class="forecast-label" id="forecastLabel60">--</div>
+                </div>
+            </div>
+            <div class="usage-bar-wrap">
+                <span class="usage-bar-label">&gt; БД:</span>
+                <div class="usage-bar-track">
+                    <div class="usage-bar" id="usageBar"></div>
+                </div>
+                <span class="usage-bar-value" id="usageBarText">0 / 1000</span>
+            </div>
+        </div>
+
         <div class="dashboard-grid">
             <div class="dashboard-card primary" onclick="openModal('networkModal')">
                 <div class="icon">[NET]</div>
@@ -98,6 +133,10 @@
             <div class="dashboard-card" onclick="openJamModal()">
                 <div class="icon">[JAM]</div>
                 <div class="title">Детекция помех</div>
+            </div>
+            <div class="dashboard-card" onclick="openModal('predictionModal')">
+                <div class="icon">[PRED]</div>
+                <div class="title">Прогноз сети</div>
             </div>
             <div class="dashboard-card" onclick="openAIModal()">
                 <div class="icon">[AI]</div>
@@ -299,9 +338,72 @@
         </div>
     </div>
 
+    <!-- Prediction Modal -->
+    <div id="predictionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><span>[PRED]</span> ПРОГНОЗ КАЧЕСТВА СЕТИ</h2>
+                <span class="close" onclick="closeModal('predictionModal')">[X]</span>
+            </div>
+            <div class="modal-body">
+
+                <!-- Database Status -->
+                <div class="prediction-section">
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="classification-title">[ DATABASE STATUS ]</div>
+                    <div id="predDbStatus" class="dim-text">&gt; Загрузка...</div>
+                    <div class="usage-bar-wrap" style="margin-top:8px;">
+                        <span class="usage-bar-label">&gt; БД:</span>
+                        <div class="usage-bar-track">
+                            <div class="usage-bar" id="modalUsageBar"></div>
+                        </div>
+                        <span class="usage-bar-value" id="modalUsageText">0 / 1000</span>
+                    </div>
+                </div>
+
+                <!-- Forecast -->
+                <div class="prediction-section">
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="classification-title">[ FORECAST ]</div>
+                    <div id="predForecastDetails" class="dim-text">&gt; Недостаточно данных. Запустите несколько тестов скорости.</div>
+                </div>
+
+                <!-- Pattern Analysis -->
+                <div class="prediction-section">
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="classification-title">[ PATTERN ANALYSIS ]</div>
+                    <div id="predPatternAnalysis" class="dim-text">&gt; Недостаточно данных для анализа паттернов.</div>
+                </div>
+
+                <!-- Historical Chart -->
+                <div class="prediction-section">
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="classification-title">[ HISTORICAL DATA (24H) ]</div>
+                    <div style="position:relative; height:200px; margin-top:10px;">
+                        <canvas id="historicalChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="prediction-section">
+                    <div class="term-divider">═══════════════════════════════════════</div>
+                    <div class="ai-controls">
+                        <button class="main-btn" onclick="predictNow()">[PRED] ОБНОВИТЬ ПРОГНОЗ</button>
+                        <button class="main-btn" onclick="optimizeDatabase()">[OPT] ОПТИМИЗИРОВАТЬ БД</button>
+                        <button class="main-btn" onclick="exportDatabase()">[EXP] ЭКСПОРТ ДАННЫХ</button>
+                        <button class="main-btn" onclick="clearDatabase()">[CLR] ОЧИСТИТЬ БД</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="neural-network.js"></script>
+    <script src="prediction-network.js"></script>
+    <script src="storage-manager.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
